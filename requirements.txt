@@ -1,0 +1,8 @@
+requests
+python-telegram-bot
+streamlit
+folium
+streamlit-folium
+scikit-learn
+pandas
+pytest
