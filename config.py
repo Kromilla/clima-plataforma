@@ -13,6 +13,14 @@ import os
 import sys
 from pathlib import Path
 
+from logging_setup import forzar_utf8_consola
+
+# Efecto de import deliberado: la consola de Windows usa cp1252 y no puede
+# imprimir los µg/m³, gCO₂eq ni emojis que este proyecto usa por todas partes.
+# Como todo módulo importa `config`, ponerlo aquí cubre también los scripts
+# sueltos sin que tengan que acordarse de configurarlo.
+forzar_utf8_consola()
+
 
 def cargar_dotenv(path: Path | None = None) -> None:
     """

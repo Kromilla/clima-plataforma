@@ -415,7 +415,36 @@ def entrenar(
     return modelo, dias
 
 
-def evaluar_riesgo(lugar_id: str = DEFAULT_LUGAR) -> tuple[Prediccion, Metricas]:
-    """Entrena y predice de una vez. Es lo que consume la API."""
+# Modelo cacheado por lugar: {lugar_id: (modelo, dias, momento_entrenamiento)}.
+# Entrenar carga ~35.000 filas y tarda 1-2 s; hacerlo en cada request hacía que
+# la pestaña de riesgo fuera lenta y machacara la BD sin necesidad. Los datos
+# horarios no cambian tan rápido como para justificar reentrenar por visita.
+_CACHE: dict[str, tuple[Modelo, list[DiaResumen], datetime]] = {}
+TTL_MODELO_SEG = 3600
+
+
+def invalidar_cache(lugar_id: str | None = None) -> None:
+    """Descarta el modelo cacheado (útil en tests y tras un backfill)."""
+    if lugar_id is None:
+        _CACHE.clear()
+    else:
+        _CACHE.pop(lugar_id, None)
+
+
+def evaluar_riesgo(
+    lugar_id: str = DEFAULT_LUGAR,
+    usar_cache: bool = True,
+) -> tuple[Prediccion, Metricas]:
+    """Entrena (o reutiliza el modelo cacheado) y predice. Es lo que usa la API."""
+    ahora = datetime.now(timezone.utc)
+
+    if usar_cache:
+        guardado = _CACHE.get(lugar_id)
+        if guardado is not None:
+            modelo, dias, entrenado = guardado
+            if (ahora - entrenado).total_seconds() < TTL_MODELO_SEG:
+                return modelo.predecir_manana(dias), modelo.metricas
+
     modelo, dias = entrenar(lugar_id)
+    _CACHE[lugar_id] = (modelo, dias, ahora)
     return modelo.predecir_manana(dias), modelo.metricas

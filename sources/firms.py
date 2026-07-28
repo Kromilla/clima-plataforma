@@ -236,5 +236,5 @@ def obtener_ultimo(lugar: dict) -> Lectura:
         logger.warning("FIRMS falló para %s: %s", lugar_id, exc)
         lectura_cache = storage.ultimo_valor(_FUENTE, lugar_id, _METRICA)
         if lectura_cache is not None:
-            return lectura_cache
+            return lectura_cache.como_cache()
         raise

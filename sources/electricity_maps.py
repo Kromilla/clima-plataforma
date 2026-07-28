@@ -36,7 +36,7 @@ def obtener_ultimo(lugar: dict) -> Lectura:
         logger.warning("ELECTRICITY_MAPS_KEY no configurado. Intentando usar caché.")
         lectura_cache = storage.ultimo_valor("electricity_maps", lugar.get("_id", "desconocido"), "intensidad_co2")
         if lectura_cache:
-            return lectura_cache
+            return lectura_cache.como_cache()
         raise ElectricityMapsError("Sin token y sin caché para Electricity Maps")
 
     url = f"https://api.electricitymap.org/v3/carbon-intensity/latest?zone={zona_id}"
@@ -77,5 +77,5 @@ def obtener_ultimo(lugar: dict) -> Lectura:
         # Intentar caché
         lectura_cache = storage.ultimo_valor("electricity_maps", lugar.get("_id", "desconocido"), "intensidad_co2")
         if lectura_cache:
-            return lectura_cache
+            return lectura_cache.como_cache()
         raise ElectricityMapsError(f"Sin datos de intensidad CO2 para zona '{zona_id}'") from e

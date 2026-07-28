@@ -12,7 +12,7 @@ Procedencias posibles:
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from typing import Protocol, runtime_checkable
 
@@ -42,6 +42,16 @@ class Lectura:
         """Minutos desde que se generó este dato."""
         delta = datetime.now(timezone.utc) - self.ts
         return int(delta.total_seconds() / 60)
+
+    def como_cache(self) -> "Lectura":
+        """
+        Copia marcada como respaldo de caché.
+
+        La usa un adaptador cuando su fuente falló y sirve el último valor
+        guardado. Leer de `storage` no es en sí "caché": solo lo es cuando se
+        entrega porque la fuente en vivo no respondió.
+        """
+        return replace(self, procedencia="cache")
 
     def antiguedad_texto(self) -> str:
         """Antigüedad en la unidad más legible: min, horas o días."""

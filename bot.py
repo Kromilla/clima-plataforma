@@ -27,6 +27,7 @@ from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import Application, CommandHandler, ContextTypes
 
+import logging_setup
 import storage
 from alerts import formato_estado, revisar_alerta
 from config import cfg
@@ -38,18 +39,10 @@ from sources.openmeteo_aire import obtener_ultimo as openmeteo_obtener
 from sources.registry import por_id
 
 # ── Logging ───────────────────────────────────────────────────────────────────
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    handlers=[
-        logging.FileHandler(cfg.LOG_FILE, encoding="utf-8"),
-        logging.StreamHandler(),
-    ],
-)
-# httpx registra la URL completa de cada request, y la URL de Telegram lleva el
-# token embebido. En INFO eso escribe el token en texto plano en cada línea del
-# log. Subirlo a WARNING evita filtrarlo.
-logging.getLogger("httpx").setLevel(logging.WARNING)
+# Centralizado en logging_setup: fuerza UTF-8 en consola (Windows usa cp1252 y
+# reventaba con los µg/m³ y emojis) y silencia el logger de httpx, que escribía
+# el token de Telegram en texto plano.
+logging_setup.configurar(cfg.LOG_FILE)
 
 logger = logging.getLogger(__name__)
 

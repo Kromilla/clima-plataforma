@@ -204,7 +204,12 @@ def test_storage_guardar_y_recuperar(tmp_path):
     assert recuperada is not None
     assert recuperada.valor == pytest.approx(55.0)
     assert recuperada.lugar_id == "santa-marta"
-    assert recuperada.procedencia == "cache"
+    # El ida y vuelta conserva la procedencia original. `storage` NO marca todo
+    # como "cache": leer de la BD no significa que la fuente estuviera caída, y
+    # hacerlo mostraba "🗄️ último dato conocido" para datos recién traídos.
+    # Quien la sirve como respaldo la marca con `.como_cache()`.
+    assert recuperada.procedencia == "local"
+    assert recuperada.como_cache().procedencia == "cache"
 
 
 # ── Test 6: config.py — sin variables → sys.exit(1) ─────────────────────────

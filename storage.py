@@ -46,8 +46,14 @@ def _db_path() -> str:
 def _conexion(db_path: str | None = None) -> Generator[sqlite3.Connection, None, None]:
     """Context manager que abre, hace commit/rollback y cierra la conexión."""
     ruta = db_path or _db_path()
-    con = sqlite3.connect(ruta)
+    # timeout: con el recolector, la API y el bot escribiendo a la vez, esperar
+    # a que se libere el lock es mejor que fallar con "database is locked".
+    con = sqlite3.connect(ruta, timeout=15)
     con.row_factory = sqlite3.Row
+    if ruta != ":memory:":
+        # WAL permite leer mientras se escribe: sin esto el dashboard se
+        # bloqueaba durante las escrituras del recolector.
+        con.execute("PRAGMA journal_mode=WAL")
     try:
         yield con
         con.commit()
@@ -197,12 +203,17 @@ def ultimo_valor(
     if row is None:
         return None
 
+    # Se conserva la procedencia original guardada, NO se fuerza a "cache".
+    # "cache" en este proyecto significa "la fuente falló y esto es un respaldo",
+    # y marcarlo aquí hacía que el dashboard mostrase "🗄️ último dato conocido"
+    # para datos que la API acababa de entregar sin problema. Quien la use como
+    # respaldo lo marca explícitamente con `Lectura.como_cache()`.
     return Lectura(
         valor=row["valor"],
         unidad=row["unidad"],
         metrica=row["metrica"],
         fuente=row["fuente"],
-        procedencia="cache",          # Si viene de BD ya es caché
+        procedencia=row["procedencia"],
         lugar_id=row["lugar_id"],
         estacion_nombre=row["estacion"] or "",
         ts=datetime.fromisoformat(row["ts"]).replace(tzinfo=timezone.utc),

@@ -21,6 +21,7 @@ import logging
 import sys
 import time
 
+import logging_setup
 import storage
 from config import cfg
 from locations import LUGARES
@@ -59,14 +60,11 @@ def recolectar_una_vez() -> dict[str, str]:
             try:
                 lectura = fuente.obtener(lugar)
                 resumen[clave] = f"ok {lectura.valor:.1f} {lectura.unidad}"
+                # El adaptador ya persistió la lectura; aquí solo orquestamos.
                 logger.info(
-                    "%s → %.1f %s (%s)",
+                    "%s -> %.1f %s (%s)",
                     clave, lectura.valor, lectura.unidad, lectura.antiguedad_texto(),
                 )
-                # El adaptador ya guardó. Reintentar aquí es barato y nos dice si
-                # la fuente publicó algo nuevo o si seguimos viendo el mismo dato.
-                if not storage.guardar(lectura):
-                    logger.debug("%s: sin dato nuevo (mismo timestamp)", clave)
             except Exception as exc:  # noqa: BLE001 — una fuente caída no frena las demás
                 resumen[clave] = f"ERROR: {exc}"
                 logger.warning("%s → falló: %s", clave, exc)
@@ -89,14 +87,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        handlers=[
-            logging.FileHandler(cfg.LOG_FILE, encoding="utf-8"),
-            logging.StreamHandler(sys.stdout),
-        ],
-    )
+    logging_setup.configurar(cfg.LOG_FILE)
 
     storage.inicializar_bd()
 

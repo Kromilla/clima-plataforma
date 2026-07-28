@@ -92,5 +92,5 @@ def obtener_ultimo(lugar: dict) -> Lectura:
         logger.warning("Open-Meteo Clima falló para %s: %s", lugar_id, exc)
         lectura_cache = storage.ultimo_valor("openmeteo-clima", lugar_id, "temperatura")
         if lectura_cache:
-            return lectura_cache
+            return lectura_cache.como_cache()
         raise OpenMeteoClimaError(f"Sin datos de clima para '{lugar_id}'") from exc

@@ -137,7 +137,7 @@ def obtener_ultimo(lugar: dict) -> Lectura:
         lectura_cache = storage.ultimo_valor(_FUENTE, lugar_id, _METRICA)
         if lectura_cache is not None:
             logger.info("XM [caché] para %s", lugar_id)
-            return lectura_cache
+            return lectura_cache.como_cache()
         raise XMSinDatos(
             f"Sin datos de intensidad de carbono para '{lugar_id}'"
         ) from exc

@@ -24,6 +24,7 @@ from datetime import date, datetime, timedelta, timezone
 
 import requests
 
+import logging_setup
 import storage
 from locations import DEFAULT_LUGAR, LUGARES
 from sources.base import Lectura
@@ -165,11 +166,7 @@ def main() -> None:
     parser.add_argument("--lugar", type=str, default=DEFAULT_LUGAR)
     args = parser.parse_args()
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        handlers=[logging.StreamHandler(sys.stdout)],
-    )
+    logging_setup.configurar()
 
     if args.lugar not in LUGARES:
         sys.exit(f"Lugar '{args.lugar}' no existe. Disponibles: {list(LUGARES)}")

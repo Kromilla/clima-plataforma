@@ -96,7 +96,7 @@ def obtener_ultimo(lugar: dict) -> Lectura:
         lectura_cache = storage.ultimo_valor("openmeteo-aire", lugar_id, _METRICA)
         if lectura_cache:
             logger.info("Open-Meteo Aire [caché] para %s", lugar_id)
-            return lectura_cache
+            return lectura_cache.como_cache()
         raise OpenMeteoAireSinDatos(
             f"Sin datos de calidad del aire para '{lugar_id}'"
         ) from exc

@@ -183,7 +183,7 @@ def obtener_ultimo(lugar: dict) -> Lectura:
             "OpenAQ [caché] PM2.5=%.1f (hace %d min) para %s",
             lectura_cache.valor, lectura_cache.antiguedad_min, lugar_id,
         )
-        return lectura_cache
+        return lectura_cache.como_cache()
 
     # ── Sin datos en ninguna capa ─────────────────────────────────────────
     raise OpenAQSinDatos(
