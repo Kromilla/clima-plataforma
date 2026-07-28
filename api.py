@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -122,7 +122,10 @@ def obtener_historial(
     fuente: str,
     lugar_id: str = DEFAULT_LUGAR,
     metrica: str | None = None,
-    limite: int = 24,
+    # Acotado a propósito: SQLite interpreta un LIMIT negativo como "sin
+    # límite", así que `limite=-1` volcaba las ~17.000 filas del historial en
+    # una sola respuesta.
+    limite: int = Query(default=24, ge=1, le=5000),
 ):
     """
     Historial para las gráficas. `metrica` es opcional: si se omite se usa la
@@ -187,7 +190,10 @@ def estado_fuentes(lugar_id: str = DEFAULT_LUGAR):
 
 
 @app.get("/api/incendios")
-def obtener_incendios(lugar_id: str = DEFAULT_LUGAR, dias: int = 2):
+def obtener_incendios(
+    lugar_id: str = DEFAULT_LUGAR,
+    dias: int = Query(default=2, ge=1, le=10),
+):
     """
     Focos de calor para el mapa (Fase 3).
 

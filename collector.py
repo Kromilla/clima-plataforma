@@ -94,9 +94,21 @@ def main() -> None:
     if args.una_vez:
         resumen = recolectar_una_vez()
         fallos = sum(1 for v in resumen.values() if v.startswith("ERROR"))
-        logger.info("Pasada única completa: %d ok, %d con error",
-                    len(resumen) - fallos, fallos)
-        sys.exit(1 if fallos == len(resumen) else 0)
+        omitidas = sum(1 for v in resumen.values() if v == "sin clave")
+        exitos = len(resumen) - fallos - omitidas
+
+        # Las omitidas se cuentan aparte: informar "4 ok" cuando una fuente ni
+        # se intentó da una falsa sensación de que todo está funcionando.
+        mensaje = "Pasada única completa: %d ok, %d con error"
+        args_log = [exitos, fallos]
+        if omitidas:
+            mensaje += ", %d omitidas (sin API key)"
+            args_log.append(omitidas)
+        logger.info(mensaje, *args_log)
+
+        # Solo es fallo si nada de lo que se intentó funcionó.
+        intentadas = len(resumen) - omitidas
+        sys.exit(1 if intentadas and fallos == intentadas else 0)
 
     logger.info(
         "Recolector iniciado — %d fuentes × %d lugares cada %ds",

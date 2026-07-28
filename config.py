@@ -63,13 +63,19 @@ class _Config:
         # Busca .env en el directorio del proyecto (un nivel arriba de este archivo)
         cargar_dotenv(Path(__file__).parent / ".env")
 
-        # ── Variables obligatorias para la Fase 1 ──────────────────────────
-        _validar(["OPENAQ_API_KEY", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"])
+        # ── Obligatorias ───────────────────────────────────────────────────
+        # Solo las de Telegram. OpenAQ dejó de ser obligatoria: la validación
+        # del Día 1 confirmó que no tiene estaciones en la costa Caribe, así que
+        # las fuentes reales (Open-Meteo, XM) no piden ninguna clave. Exigirla
+        # obligaba a registrarse en un servicio que el proyecto ni usa.
+        _validar(["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"])
 
-        # API Keys
-        self.OPENAQ_API_KEY: str = os.environ["OPENAQ_API_KEY"]
         self.TELEGRAM_BOT_TOKEN: str = os.environ["TELEGRAM_BOT_TOKEN"]
         self.TELEGRAM_CHAT_ID: str = os.environ["TELEGRAM_CHAT_ID"]
+
+        # ── Opcionales ─────────────────────────────────────────────────────
+        # OpenAQ es fuente secundaria; sin clave simplemente no se consulta.
+        self.OPENAQ_API_KEY: str | None = os.environ.get("OPENAQ_API_KEY")
 
         # Electricity Maps (opcional — reemplazado por XM, que no pide clave)
         self.ELECTRICITY_MAPS_KEY: str | None = os.environ.get("ELECTRICITY_MAPS_KEY")

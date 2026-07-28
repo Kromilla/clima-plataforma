@@ -143,6 +143,17 @@ def obtener_ultimo(lugar: dict) -> Lectura:
     bbox: tuple = lugar["bbox"]
     fallback_id: str | None = lugar.get("fallback_openaq")
 
+    # Sin clave no tiene sentido intentar la API: se salta directo al caché.
+    # OpenAQ es opcional desde que se confirmó que no cubre la costa Caribe.
+    if not cfg.OPENAQ_API_KEY:
+        lectura_cache = storage.ultimo_valor("openaq", lugar_id, _METRICA)
+        if lectura_cache is not None:
+            return lectura_cache.como_cache()
+        raise OpenAQSinDatos(
+            f"OpenAQ no está configurado (falta OPENAQ_API_KEY) y no hay caché "
+            f"para '{lugar_id}'."
+        )
+
     # ── Capa 1: estación local ────────────────────────────────────────────
     try:
         mediciones = _consultar_bbox(bbox, cfg.OPENAQ_API_KEY)

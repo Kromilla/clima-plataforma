@@ -223,6 +223,136 @@ def test_invalidar_cache_fuerza_reentrenamiento(monkeypatch, tmp_path):
 
 # ── Bug: el recolector guardaba dos veces la misma lectura ───────────────────
 
+# ── Bug: un LIMIT negativo volcaba TODO el historial ─────────────────────────
+
+def _cliente():
+    from fastapi.testclient import TestClient
+
+    from api import app
+    return TestClient(app)
+
+
+@pytest.mark.parametrize("limite", [-1, -5, 0, 5001, 10**9])
+def test_limite_del_historial_esta_acotado(limite):
+    """
+    SQLite interpreta `LIMIT -1` como "sin límite": `limite=-1` devolvía las
+    ~17.000 filas del historial en una sola respuesta.
+    """
+    resp = _cliente().get(
+        f"/api/clima/historial?fuente=openmeteo-clima&metrica=temperatura&limite={limite}"
+    )
+    assert resp.status_code == 422, f"limite={limite} debería rechazarse"
+
+
+def test_limite_valido_se_respeta():
+    resp = _cliente().get(
+        "/api/clima/historial?fuente=openmeteo-clima&metrica=temperatura&limite=5"
+    )
+    assert resp.status_code == 200
+    assert len(resp.json()) <= 5
+
+
+@pytest.mark.parametrize("dias", [0, -3, 11, 9999])
+def test_dias_de_incendios_acotado(dias):
+    assert _cliente().get(f"/api/incendios?dias={dias}").status_code == 422
+
+
+# ── Bug: inf y NaN reventaban el cálculo de huella ───────────────────────────
+
+@pytest.mark.parametrize("valor", [float("inf"), float("-inf"), float("nan")])
+def test_huella_rechaza_valores_no_finitos(valor):
+    """
+    `inf > 0` pasa cualquier comparación de signo y toda comparación con NaN es
+    falsa, así que ambos se colaban hasta el cálculo y reventaban al serializar
+    la respuesta.
+    """
+    import huella
+
+    with pytest.raises(ValueError, match="finito"):
+        huella.calcular(huella.Respuestas(km_semana=valor))
+
+
+@pytest.mark.parametrize("cuerpo", [
+    '{"km_semana": Infinity}',
+    '{"km_semana": NaN}',
+    '{"km_semana": 1e400}',   # JSON válido que Python convierte a inf
+])
+def test_la_api_de_huella_rechaza_no_finitos(cuerpo):
+    resp = _cliente().post(
+        "/api/huella/calcular", content=cuerpo,
+        headers={"Content-Type": "application/json"},
+    )
+    assert resp.status_code == 400
+    assert "finito" in resp.json()["detail"]
+
+
+def test_huella_rechaza_valores_absurdos():
+    """Sin tope superior, 1e12 km/semana daba 8.800 millones de toneladas."""
+    import huella
+
+    with pytest.raises(ValueError, match="demasiado alto"):
+        huella.calcular(huella.Respuestas(km_semana=10**12))
+
+
+def test_huella_acepta_un_caso_extremo_pero_real():
+    """Los topes no deben estorbar a un usuario real con consumo alto."""
+    import huella
+
+    res = huella.calcular(huella.Respuestas(
+        transporte="auto_gasolina", km_semana=1500, horas_vuelo_anio=200,
+        kwh_mes=2000, personas_hogar=1, dieta="carne_alta",
+        residuos_kg_semana=50,
+    ))
+    assert res.total_t > 0
+
+
+# ── Bug: se exigía OPENAQ_API_KEY para arrancar ──────────────────────────────
+
+def test_openaq_es_opcional():
+    """
+    OpenAQ no cubre la costa Caribe y no es la fuente primaria. Exigirla
+    obligaba a registrarse en un servicio que el proyecto no usa.
+    """
+    import config
+
+    fuente = Path(config.__file__).read_text(encoding="utf-8")
+    assert '_validar(["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"])' in fuente, (
+        "OPENAQ_API_KEY no debe estar entre las variables obligatorias"
+    )
+
+
+def test_openaq_sin_clave_no_llama_a_la_api(monkeypatch, tmp_path):
+    """Sin clave debe ir directo al caché en vez de pedir un 401 a la API."""
+    import sources.openaq as openaq
+
+    db = str(tmp_path / "t.db")
+    storage.inicializar_bd(db)
+    monkeypatch.setattr(storage, "_db_path", lambda: db)
+    monkeypatch.setattr(openaq.cfg, "OPENAQ_API_KEY", None)
+
+    def no_llamar(*args, **kwargs):
+        raise AssertionError("no debería consultar la API sin clave")
+
+    monkeypatch.setattr(openaq.requests, "get", no_llamar)
+
+    with pytest.raises(openaq.OpenAQSinDatos, match="OPENAQ_API_KEY"):
+        openaq.obtener_ultimo({"_id": "santa-marta", "bbox": (-74.3, 11.0, -73.8, 11.4)})
+
+
+# ── Bug: el recolector contaba las fuentes sin clave como "ok" ───────────────
+
+def test_las_fuentes_sin_clave_se_reportan_aparte():
+    """Informar '4 ok' cuando una fuente ni se intentó es engañoso."""
+    import inspect
+
+    import collector
+
+    codigo = inspect.getsource(collector.main)
+    assert "omitidas" in codigo, (
+        "el resumen debe distinguir las fuentes omitidas de las que sí funcionaron"
+    )
+
+
 def test_el_recolector_no_guarda_por_duplicado():
     """
     El adaptador ya persiste; el recolector volvía a llamar a `guardar`, lo que

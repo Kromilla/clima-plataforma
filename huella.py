@@ -23,6 +23,7 @@ tercio del total.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -164,8 +165,32 @@ class Resultado:
         return self.total_t <= OBJETIVO_PARIS_2030_T
 
 
+# Topes superiores. No son arbitrarios: por encima de esto la respuesta ya no
+# describe a una persona y el resultado sería ruido presentado como dato.
+# Referencias: la vuelta al mundo son ~40.000 km; 20.000 km/semana es más de una
+# vuelta al mundo cada dos semanas.
+LIMITES_SUPERIORES = {
+    "km_semana": (20_000, "km por semana"),
+    "horas_vuelo_anio": (8_760, "horas de vuelo al año"),   # un año entero volando
+    "kwh_mes": (100_000, "kWh al mes"),                     # consumo industrial
+    "gas_m3_mes": (10_000, "m³ de gas al mes"),
+    "glp_kg_mes": (10_000, "kg de GLP al mes"),
+    "residuos_kg_semana": (10_000, "kg de basura por semana"),
+    "pasajeros_auto": (100, "ocupantes del vehículo"),
+    "personas_hogar": (100, "personas en el hogar"),
+}
+
+
 def _validar(r: Respuestas) -> None:
     """Rechaza entradas imposibles antes de calcular."""
+    # `inf` y `NaN` primero: `inf > 0` pasa cualquier comparación de signo, y
+    # toda comparación con NaN es falsa, así que ambos se colaban hasta el
+    # cálculo y reventaban al serializar la respuesta a JSON.
+    for campo in LIMITES_SUPERIORES:
+        valor = getattr(r, campo)
+        if not math.isfinite(valor):
+            raise ValueError(f"'{campo}' debe ser un número finito")
+
     if r.km_semana < 0 or r.horas_vuelo_anio < 0:
         raise ValueError("Las distancias no pueden ser negativas")
     if r.kwh_mes < 0 or r.gas_m3_mes < 0 or r.glp_kg_mes < 0:
@@ -176,6 +201,14 @@ def _validar(r: Respuestas) -> None:
         raise ValueError("Debe haber al menos 1 ocupante en el vehículo")
     if r.personas_hogar < 1:
         raise ValueError("Debe haber al menos 1 persona en el hogar")
+
+    for campo, (tope, etiqueta) in LIMITES_SUPERIORES.items():
+        if getattr(r, campo) > tope:
+            raise ValueError(
+                f"El valor de '{etiqueta}' es demasiado alto (máximo {tope:,.0f}). "
+                "Revisa que no te hayas equivocado al escribirlo."
+            )
+
     if r.transporte not in FACTOR_TRANSPORTE_KM:
         raise ValueError(f"Transporte desconocido: {r.transporte}")
     if r.dieta not in FACTOR_DIETA_ANUAL_T:
