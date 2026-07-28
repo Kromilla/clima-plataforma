@@ -12,7 +12,7 @@ Monitor de calidad del aire, clima, energía e incendios para **Santa Marta, Col
 |---|---|
 | **Fase 1** — Fundaciones + bot de alertas | ✅ |
 | **Fase 2** — Dashboard + historial | ✅ |
-| **Fase 3** — Monitor de incendios | ✅ *(requiere clave gratuita de NASA)* |
+| **Fase 3** — Monitor de incendios | ✅ |
 | **Módulo A** — Calculadora de huella | ✅ |
 | **Módulo B** — Quiz educativo | ✅ |
 | **Fase 4** — Predictor de riesgo | ✅ *(estimación experimental)* |
