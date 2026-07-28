@@ -150,10 +150,13 @@ def test_la_bd_usa_wal(tmp_path):
     assert modo.lower() == "wal"
 
 
-def test_se_puede_leer_mientras_hay_una_escritura_abierta(tmp_path):
+def test_se_puede_leer_mientras_hay_una_escritura_abierta(tmp_path, monkeypatch):
     """Con WAL, un lector no debe fallar porque haya una transacción abierta."""
     db = str(tmp_path / "t.db")
     storage.inicializar_bd(db)
+    # Sin esto, cualquier llamada que omita `db_path` escribiría en la BD real
+    # del proyecto: ya pasó una vez y dejó filas de prueba en `clima.db`.
+    monkeypatch.setattr(storage, "_db_path", lambda: db)
     storage.guardar(_lectura(), db)
 
     escritor = sqlite3.connect(db, timeout=5)
@@ -351,6 +354,124 @@ def test_las_fuentes_sin_clave_se_reportan_aparte():
     assert "omitidas" in codigo, (
         "el resumen debe distinguir las fuentes omitidas de las que sí funcionaron"
     )
+
+
+# ── Bug: se pedía una semana de datos y se guardaba solo 1 punto ─────────────
+
+def test_xm_guarda_la_serie_completa_no_solo_la_ultima_hora(monkeypatch, tmp_path):
+    """
+    XM devuelve ~120 horas por llamada y el adaptador se quedaba solo con la
+    última, tirando 119. La gráfica del dashboard quedaba vacía para siempre por
+    más que corriera el recolector.
+    """
+    import json
+    from unittest.mock import MagicMock, patch
+
+    import sources.xm as xm
+
+    db = str(tmp_path / "t.db")
+    storage.inicializar_bd(db)
+    monkeypatch.setattr(storage, "_db_path", lambda: db)
+
+    fixture = json.loads(
+        (RAIZ / "tests" / "fixtures" / "xm_factor_emision.json").read_text(encoding="utf-8")
+    )
+    resp = MagicMock()
+    resp.json.return_value = fixture
+    resp.raise_for_status.return_value = None
+
+    with patch.object(xm.requests, "post", return_value=resp):
+        xm.obtener_ultimo({"_id": "santa-marta"})
+
+    guardadas = storage.historial("xm", "santa-marta", "intensidad_co2", 1000, db)
+    assert len(guardadas) == 48, f"esperaba 48 horas (2 días), guardó {len(guardadas)}"
+
+    # Ordenadas y sin duplicados
+    marcas = [lec.ts for lec in guardadas]
+    assert marcas == sorted(marcas)
+    assert len(marcas) == len(set(marcas))
+
+
+def test_xm_parsea_las_24_horas_de_cada_dia():
+    import json
+
+    import sources.xm as xm
+
+    fixture = json.loads(
+        (RAIZ / "tests" / "fixtures" / "xm_factor_emision.json").read_text(encoding="utf-8")
+    )
+    serie = xm._parsear_serie(fixture["Items"])
+
+    assert len(serie) == 48
+    # Una hora de diferencia entre puntos consecutivos
+    for anterior, siguiente in zip(serie, serie[1:]):
+        assert (siguiente[0] - anterior[0]).total_seconds() == 3600
+
+
+def test_openmeteo_descarta_las_horas_futuras():
+    """
+    Se pide `forecast_days=1`, así que la respuesta trae horas que aún no han
+    ocurrido. Guardarlas mezclaría pronóstico con observación en el historial
+    que entrena el predictor.
+    """
+    from datetime import timedelta as td
+
+    import sources.openmeteo_aire as aire
+
+    ahora = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    data = {
+        "hourly": {
+            "time": [
+                (ahora - td(hours=2)).strftime("%Y-%m-%dT%H:%M"),
+                (ahora - td(hours=1)).strftime("%Y-%m-%dT%H:%M"),
+                (ahora + td(hours=1)).strftime("%Y-%m-%dT%H:%M"),
+                (ahora + td(hours=2)).strftime("%Y-%m-%dT%H:%M"),
+            ],
+            "pm2_5": [10.0, 11.0, 12.0, 13.0],
+        }
+    }
+    lecturas = aire._parsear_serie(data, "santa-marta", "test")
+
+    assert len(lecturas) == 2, "solo deben guardarse las horas ya ocurridas"
+    assert all(lec.ts <= ahora for lec in lecturas)
+
+
+def test_openmeteo_clima_guarda_temperatura_y_humedad():
+    """El predictor necesita ambas: sin humedad no hay índice de calor."""
+    from datetime import timedelta as td
+
+    import sources.openmeteo_clima as clima
+
+    ahora = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    data = {
+        "hourly": {
+            "time": [(ahora - td(hours=i)).strftime("%Y-%m-%dT%H:%M") for i in (2, 1)],
+            "temperature_2m": [28.0, 29.0],
+            "relative_humidity_2m": [70.0, 72.0],
+        }
+    }
+    lecturas = clima._parsear_serie(data, "santa-marta", "test")
+
+    metricas = {lec.metrica for lec in lecturas}
+    assert metricas == {"temperatura", "humedad"}
+    assert len(lecturas) == 4
+
+
+def test_openmeteo_tolera_huecos_en_la_serie():
+    """Un None en el reanálisis no debe cortar el resto de la serie."""
+    from datetime import timedelta as td
+
+    import sources.openmeteo_aire as aire
+
+    ahora = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    data = {
+        "hourly": {
+            "time": [(ahora - td(hours=i)).strftime("%Y-%m-%dT%H:%M") for i in (3, 2, 1)],
+            "pm2_5": [10.0, None, 12.0],
+        }
+    }
+    lecturas = aire._parsear_serie(data, "santa-marta", "test")
+    assert len(lecturas) == 2
 
 
 def test_el_recolector_no_guarda_por_duplicado():

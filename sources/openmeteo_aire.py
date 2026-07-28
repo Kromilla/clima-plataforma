@@ -25,8 +25,52 @@ _METRICA = "pm25"
 _UNIDAD = "µg/m³"
 
 
+# Días de historial que se piden en cada llamada. La API los da gratis en la
+# misma petición, así que la gráfica tiene forma desde la primera ejecución.
+_DIAS_HISTORIAL = 7
+
+
 class OpenMeteoAireSinDatos(Exception):
     """Se lanza cuando la API no devuelve datos válidos."""
+
+
+def _parsear_serie(data: dict, lugar_id: str, estacion: str) -> list[Lectura]:
+    """
+    Convierte la respuesta horaria en Lecturas, descartando horas futuras.
+
+    Con `forecast_days=1` la respuesta incluye horas que aún no han ocurrido:
+    guardarlas mezclaría pronóstico con observación en el mismo historial.
+    """
+    horario = data.get("hourly") or {}
+    tiempos = horario.get("time") or []
+    valores = horario.get("pm2_5") or []
+    ahora = datetime.now(timezone.utc)
+
+    lecturas: list[Lectura] = []
+    for ts_str, valor in zip(tiempos, valores):
+        if valor is None:
+            continue
+        try:
+            ts = datetime.fromisoformat(ts_str).replace(tzinfo=timezone.utc)
+        except (ValueError, TypeError):
+            continue
+        if ts > ahora:
+            break  # a partir de aquí es pronóstico
+
+        lecturas.append(
+            Lectura(
+                valor=float(valor),
+                unidad=_UNIDAD,
+                metrica=_METRICA,
+                fuente="openmeteo-aire",
+                procedencia="local",
+                lugar_id=lugar_id,
+                estacion_nombre=estacion,
+                ts=ts,
+            )
+        )
+
+    return lecturas
 
 
 def obtener_ultimo(lugar: dict) -> Lectura:
@@ -45,48 +89,39 @@ def obtener_ultimo(lugar: dict) -> Lectura:
     lat = lugar["lat"]
     lon = lugar["lon"]
 
+    estacion = f"Modelo CAMS ({lat:.2f}°N, {lon:.2f}°W)"
+
     try:
         resp = requests.get(
             _BASE_URL,
             params={
                 "latitude": lat,
                 "longitude": lon,
-                "current": "pm2_5,pm10,carbon_monoxide,nitrogen_dioxide,ozone,dust",
+                # Se pide la serie horaria y no solo `current`: con un punto por
+                # llamada la gráfica del dashboard tardaba días en tener forma,
+                # pudiendo traer una semana de historial de una vez.
+                "hourly": "pm2_5",
+                "past_days": _DIAS_HISTORIAL,
+                "forecast_days": 1,
                 # UTC a propósito: abajo interpretamos el timestamp como UTC. Pedir
                 # una zona local devolvería hora de Bogotá y el dato aparecería
                 # 5 h más viejo de lo que es.
                 "timezone": "UTC",
             },
-            timeout=10,
+            timeout=15,
         )
         resp.raise_for_status()
         data = resp.json()
 
-        current = data.get("current", {})
-        pm25_val = current.get("pm2_5")
-        ts_str = current.get("time", "")
-
-        if pm25_val is None:
+        lecturas = _parsear_serie(data, lugar_id, estacion)
+        if not lecturas:
             raise OpenMeteoAireSinDatos("pm2_5 no disponible en la respuesta")
 
-        try:
-            ts = datetime.fromisoformat(ts_str).replace(tzinfo=timezone.utc)
-        except (ValueError, AttributeError):
-            ts = datetime.now(timezone.utc)
-
-        lectura = Lectura(
-            valor=float(pm25_val),
-            unidad=_UNIDAD,
-            metrica=_METRICA,
-            fuente="openmeteo-aire",
-            procedencia="local",
-            lugar_id=lugar_id,
-            estacion_nombre=f"Modelo CAMS ({lat:.2f}°N, {lon:.2f}°W)",
-            ts=ts,
-        )
-        storage.guardar(lectura)
+        nuevas = storage.guardar_muchas(lecturas)
+        lectura = lecturas[-1]
         logger.info(
-            "Open-Meteo Aire [modelo] PM2.5=%.1f para %s", lectura.valor, lugar_id
+            "Open-Meteo Aire [modelo] PM2.5=%.1f para %s — %d horas, %d nuevas",
+            lectura.valor, lugar_id, len(lecturas), nuevas,
         )
         return lectura
 

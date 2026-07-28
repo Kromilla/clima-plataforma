@@ -44,40 +44,56 @@ class XMSinDatos(Exception):
     """Se lanza cuando no hay dato ni en la API ni en caché."""
 
 
-def _ultima_hora_disponible(items: list[dict]) -> tuple[datetime, float] | None:
+def _parsear_serie(items: list[dict]) -> list[tuple[datetime, float]]:
     """
-    Recorre la respuesta de XM y devuelve (timestamp, valor) de la hora más
-    reciente con dato.
+    Convierte la respuesta de XM en una serie horaria completa, ordenada.
 
     Formato de XM: cada día trae un dict `Values` con claves Hour01..Hour24,
     donde Hour01 = 00:00-01:00 y Hour24 = 23:00-24:00 hora local de Colombia.
     Los días parciales simplemente traen menos claves Hour*.
+
+    Se devuelve la serie entera y no solo el último punto: una sola llamada trae
+    ~120 horas de datos, y quedarse con una sola dejaba la gráfica del dashboard
+    permanentemente vacía por más que corriera el recolector.
     """
-    for item in reversed(items):  # el día más reciente primero
+    serie: list[tuple[datetime, float]] = []
+
+    for item in items:
         entidades = item.get("HourlyEntities") or []
         if not entidades:
             continue
         valores = entidades[0].get("Values") or {}
 
-        horas = sorted(k for k in valores if k.startswith("Hour"))
-        if not horas:
-            continue
-
-        clave_hora = horas[-1]
         try:
-            valor = float(valores[clave_hora])
-            hora_idx = int(clave_hora.removeprefix("Hour"))  # 1..24
             dia = date.fromisoformat(item["Date"])
         except (ValueError, KeyError, TypeError):
             continue
 
-        # Hour01 cubre 00:00-01:00 → lo anclamos al inicio del intervalo.
-        ts = datetime(
-            dia.year, dia.month, dia.day, tzinfo=_TZ_COLOMBIA
-        ) + timedelta(hours=hora_idx - 1)
-        return ts.astimezone(timezone.utc), valor
+        for clave, crudo in valores.items():
+            if not clave.startswith("Hour"):
+                continue
+            try:
+                valor = float(crudo)
+                hora_idx = int(clave.removeprefix("Hour"))  # 1..24
+            except (ValueError, TypeError):
+                continue
+            if not 1 <= hora_idx <= 24:
+                continue
 
-    return None
+            # Hour01 cubre 00:00-01:00 → se ancla al inicio del intervalo.
+            ts = datetime(
+                dia.year, dia.month, dia.day, tzinfo=_TZ_COLOMBIA
+            ) + timedelta(hours=hora_idx - 1)
+            serie.append((ts.astimezone(timezone.utc), valor))
+
+    serie.sort(key=lambda par: par[0])
+    return serie
+
+
+def _ultima_hora_disponible(items: list[dict]) -> tuple[datetime, float] | None:
+    """Última hora con dato, o None si no hay ninguna."""
+    serie = _parsear_serie(items)
+    return serie[-1] if serie else None
 
 
 def obtener_ultimo(lugar: dict) -> Lectura:
@@ -110,25 +126,34 @@ def obtener_ultimo(lugar: dict) -> Lectura:
         resp.raise_for_status()
         items = resp.json().get("Items") or []
 
-        reciente = _ultima_hora_disponible(items)
-        if reciente is None:
+        serie = _parsear_serie(items)
+        if not serie:
             raise XMSinDatos("XM respondió sin horas con dato en la ventana pedida")
 
-        ts, valor = reciente
-        lectura = Lectura(
-            valor=valor,
-            unidad=_UNIDAD,
-            metrica=_METRICA,
-            fuente=_FUENTE,
-            procedencia="local",
-            lugar_id=lugar_id,
-            estacion_nombre="Sistema Interconectado Nacional (XM)",
-            ts=ts,
-        )
-        storage.guardar(lectura)
+        # Se guarda la serie completa, no solo el último punto: el índice único
+        # ignora lo ya conocido, así que repetirlo es barato y la gráfica tiene
+        # historial desde la primera ejecución.
+        lecturas = [
+            Lectura(
+                valor=valor,
+                unidad=_UNIDAD,
+                metrica=_METRICA,
+                fuente=_FUENTE,
+                procedencia="local",
+                lugar_id=lugar_id,
+                estacion_nombre="Sistema Interconectado Nacional (XM)",
+                ts=ts,
+            )
+            for ts, valor in serie
+        ]
+        nuevas = storage.guardar_muchas(lecturas)
+
+        lectura = lecturas[-1]
         logger.info(
-            "XM [oficial] intensidad=%.1f %s (dato de hace %d min) para %s",
-            valor, _UNIDAD, lectura.antiguedad_min, lugar_id,
+            "XM [oficial] intensidad=%.1f %s (dato de hace %d min) para %s "
+            "— %d horas recibidas, %d nuevas",
+            lectura.valor, _UNIDAD, lectura.antiguedad_min, lugar_id,
+            len(lecturas), nuevas,
         )
         return lectura
 
