@@ -31,7 +31,10 @@ def obtener_ultimo(lugar: dict) -> Lectura:
             params={
                 "latitude": lat,
                 "longitude": lon,
-                "current": "temperature_2m",
+                # La humedad se guarda como métrica secundaria: risk.py la
+                # necesita para el índice de calor, y sin ella el historial
+                # reciente queda incompleto justo donde el predictor mira.
+                "current": "temperature_2m,relative_humidity_2m",
                 # UTC a propósito: ver nota en openmeteo_aire.py.
                 "timezone": "UTC",
             },
@@ -52,6 +55,8 @@ def obtener_ultimo(lugar: dict) -> Lectura:
         except (ValueError, AttributeError):
             ts = datetime.now(timezone.utc)
 
+        estacion = f"Open-Meteo ({lat:.2f}°N, {lon:.2f}°W)"
+
         lectura = Lectura(
             valor=float(temp_val),
             unidad="°C",
@@ -59,10 +64,28 @@ def obtener_ultimo(lugar: dict) -> Lectura:
             fuente="openmeteo-clima",
             procedencia="local",
             lugar_id=lugar_id,
-            estacion_nombre=f"Open-Meteo ({lat:.2f}°N, {lon:.2f}°W)",
+            estacion_nombre=estacion,
             ts=ts,
         )
         storage.guardar(lectura)
+
+        # Métrica secundaria. La temperatura es la que reporta el semáforo; la
+        # humedad se persiste igual porque el predictor de la Fase 4 la usa.
+        humedad = current.get("relative_humidity_2m")
+        if humedad is not None:
+            storage.guardar(
+                Lectura(
+                    valor=float(humedad),
+                    unidad="%",
+                    metrica="humedad",
+                    fuente="openmeteo-clima",
+                    procedencia="local",
+                    lugar_id=lugar_id,
+                    estacion_nombre=estacion,
+                    ts=ts,
+                )
+            )
+
         return lectura
 
     except Exception as exc:

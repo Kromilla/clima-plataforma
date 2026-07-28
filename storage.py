@@ -136,6 +136,43 @@ def guardar(lectura: Lectura, db_path: str | None = None) -> bool:
         return cur.rowcount > 0
 
 
+def guardar_muchas(lecturas: list[Lectura], db_path: str | None = None) -> int:
+    """
+    Persiste muchas lecturas en una sola transacción.
+
+    `guardar()` abre y cierra una conexión por lectura, lo que es irrelevante
+    para el recolector (un puñado de filas cada 15 min) pero inviable para el
+    backfill histórico, que inserta decenas de miles de una vez.
+
+    Returns:
+        Cuántas lecturas eran nuevas (las repetidas se ignoran).
+    """
+    if not lecturas:
+        return 0
+
+    filas = [
+        (
+            lec.fuente, lec.lugar_id, lec.metrica, lec.valor, lec.unidad,
+            lec.procedencia, lec.estacion_nombre, lec.ts.isoformat(),
+        )
+        for lec in lecturas
+    ]
+
+    with _conexion(db_path) as con:
+        antes = con.execute("SELECT COUNT(*) FROM lecturas").fetchone()[0]
+        con.executemany(
+            """
+            INSERT OR IGNORE INTO lecturas
+                (fuente, lugar_id, metrica, valor, unidad, procedencia, estacion, ts)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            filas,
+        )
+        despues = con.execute("SELECT COUNT(*) FROM lecturas").fetchone()[0]
+
+    return despues - antes
+
+
 def ultimo_valor(
     fuente: str,
     lugar_id: str,

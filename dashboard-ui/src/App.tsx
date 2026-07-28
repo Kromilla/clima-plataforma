@@ -1,8 +1,12 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { Wind, Zap } from 'lucide-react';
+import { Wind, Zap, Flame, Leaf, Brain, ThermometerSun } from 'lucide-react';
 import AirQuality from './pages/AirQuality';
 import Energy from './pages/Energy';
+import Fires from './pages/Fires';
+import Footprint from './pages/Footprint';
+import Quiz from './pages/Quiz';
+import Risk from './pages/Risk';
 import { fetchEstadoFuentes, type EstadoFuente } from './api';
 import { LugarProvider, useLugar } from './LugarContext';
 
@@ -10,7 +14,17 @@ const COLOR_SEMAFORO: Record<string, string> = {
   verde: 'bg-green-500',
   amarillo: 'bg-yellow-500',
   rojo: 'bg-red-500',
+  gris: 'bg-gray-300',
 };
+
+const NAVEGACION = [
+  { ruta: '/', etiqueta: 'Aire y Clima', icono: Wind },
+  { ruta: '/energia', etiqueta: 'Energía', icono: Zap },
+  { ruta: '/incendios', etiqueta: 'Incendios', icono: Flame },
+  { ruta: '/riesgo', etiqueta: 'Riesgo de calor', icono: ThermometerSun },
+  { ruta: '/huella', etiqueta: 'Mi huella', icono: Leaf },
+  { ruta: '/quiz', etiqueta: 'Quiz', icono: Brain },
+];
 
 function Header() {
   const { lugarId } = useLugar();
@@ -30,9 +44,9 @@ function Header() {
   }, [lugarId]);
 
   return (
-    <header className="bg-white border-b border-gray-200 min-h-16 flex flex-wrap gap-y-2 items-center justify-between px-6 py-3 sticky top-0 z-10">
+    <header className="bg-white border-b border-gray-200 flex flex-wrap gap-y-2 items-center justify-between px-6 py-3 sticky top-0 z-[1000]">
       <h1 className="text-xl font-semibold text-gray-800">ClimaBot</h1>
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
         {Object.entries(estados).map(([id, e]) => (
           <div key={id} className="flex items-center space-x-2" title={e.detalle}>
             <span className="text-sm text-gray-500">{e.etiqueta}</span>
@@ -47,24 +61,24 @@ function Header() {
 
 function Sidebar() {
   const location = useLocation();
-  const clase = (path: string) =>
-    `flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-      location.pathname === path
-        ? 'bg-green-50 text-green-700'
-        : 'text-gray-600 hover:bg-gray-50'
-    }`;
 
   return (
-    <div className="w-64 bg-white border-r border-gray-200 flex-shrink-0">
-      <nav className="py-6 px-4 space-y-2 sticky top-20">
-        <Link to="/" className={clase('/')}>
-          <Wind className="w-5 h-5" />
-          <span className="font-medium">Aire y Clima</span>
-        </Link>
-        <Link to="/energia" className={clase('/energia')}>
-          <Zap className="w-5 h-5" />
-          <span className="font-medium">Energía</span>
-        </Link>
+    <div className="w-56 bg-white border-r border-gray-200 flex-shrink-0">
+      <nav className="py-6 px-3 space-y-1 sticky top-20">
+        {NAVEGACION.map(({ ruta, etiqueta, icono: Icono }) => (
+          <Link
+            key={ruta}
+            to={ruta}
+            className={`flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors ${
+              location.pathname === ruta
+                ? 'bg-green-50 text-green-700'
+                : 'text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            <Icono className="w-5 h-5 flex-shrink-0" />
+            <span className="font-medium text-sm">{etiqueta}</span>
+          </Link>
+        ))}
       </nav>
     </div>
   );
@@ -98,6 +112,10 @@ export default function App() {
           <Routes>
             <Route path="/" element={<AirQuality />} />
             <Route path="/energia" element={<Energy />} />
+            <Route path="/incendios" element={<Fires />} />
+            <Route path="/riesgo" element={<Risk />} />
+            <Route path="/huella" element={<Footprint />} />
+            <Route path="/quiz" element={<Quiz />} />
           </Routes>
         </Layout>
       </LugarProvider>

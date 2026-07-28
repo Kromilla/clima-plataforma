@@ -13,7 +13,9 @@ pydantic>=2.6.0
 pytest>=8.0.0
 httpx>=0.27.0          # requerido por fastapi.testclient
 
-# ── Fases futuras ─────────────────────────────────────────────────────────────
-# El dashboard es React + Vite (ver dashboard-ui/), no Streamlit.
-# folium/streamlit se reevalúan en la Fase 3 (mapa de incendios).
-# scikit-learn + pandas entran en la Fase 4 (predictor de riesgo).
+# ── Predictor de riesgo (Fase 4) ──────────────────────────────────────────────
+scikit-learn>=1.4.0
+numpy>=1.26.0
+
+# Nota: el mapa de incendios usa Leaflet en el frontend (ver dashboard-ui/),
+# no folium — el dashboard es React + Vite, no Streamlit.

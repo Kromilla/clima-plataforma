@@ -63,8 +63,12 @@ class _Config:
         self.TELEGRAM_BOT_TOKEN: str = os.environ["TELEGRAM_BOT_TOKEN"]
         self.TELEGRAM_CHAT_ID: str = os.environ["TELEGRAM_CHAT_ID"]
 
-        # Electricity Maps (opcional en Fase 1 — no bloquea arranque)
+        # Electricity Maps (opcional — reemplazado por XM, que no pide clave)
         self.ELECTRICITY_MAPS_KEY: str | None = os.environ.get("ELECTRICITY_MAPS_KEY")
+
+        # NASA FIRMS (opcional — sin clave, la capa de incendios se desactiva sola)
+        # Gratis en https://firms.modaps.eosdis.nasa.gov/api/map_key/
+        self.FIRMS_MAP_KEY: str | None = os.environ.get("FIRMS_MAP_KEY")
 
         # ── Parámetros de comportamiento (con defaults razonables) ──────────
         self.UMBRAL_PM25_DEFAULT: float = float(

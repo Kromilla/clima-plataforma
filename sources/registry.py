@@ -13,7 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
-from sources import openmeteo_aire, openmeteo_clima, xm
+from sources import firms, openmeteo_aire, openmeteo_clima, xm
 from sources.base import Lectura
 
 
@@ -29,6 +29,22 @@ class FuenteRegistrada:
     # XM publica con días de rezago: exigirle 2 h lo pintaría rojo para siempre.
     frescura_ok_min: int = 120
     frescura_alerta_min: int = 720
+    # True si la fuente necesita una API key que puede no estar configurada.
+    # El recolector no la reporta como fallo cuando falta la clave.
+    requiere_clave: bool = False
+
+    def clave_configurada(self) -> bool:
+        """Si la fuente pide clave, indica si está presente en el entorno."""
+        if not self.requiere_clave:
+            return True
+        from config import cfg  # import diferido: evita ciclo con config
+        return bool(getattr(cfg, _CLAVE_POR_FUENTE.get(self.id, ""), None))
+
+
+# Qué variable de config mira cada fuente que requiere clave.
+_CLAVE_POR_FUENTE = {
+    "firms": "FIRMS_MAP_KEY",
+}
 
 
 FUENTES: tuple[FuenteRegistrada, ...] = (
@@ -52,6 +68,16 @@ FUENTES: tuple[FuenteRegistrada, ...] = (
         # XM publica con ~2-3 días de rezago; esto es normal, no una falla.
         frescura_ok_min=4 * 24 * 60,
         frescura_alerta_min=8 * 24 * 60,
+    ),
+    FuenteRegistrada(
+        id="firms",
+        etiqueta="Incendios (FIRMS)",
+        metrica="focos_activos",
+        obtener=firms.obtener_ultimo,
+        # Los satélites VIIRS pasan ~2 veces al día; 12 h es una espera normal.
+        frescura_ok_min=12 * 60,
+        frescura_alerta_min=36 * 60,
+        requiere_clave=True,
     ),
 )
 

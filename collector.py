@@ -40,8 +40,8 @@ def recolectar_una_vez() -> dict[str, str]:
     Consulta todas las fuentes para todos los lugares y persiste los resultados.
 
     Returns:
-        Resumen {"<lugar>/<fuente>": "ok 8.4 µg/m³" | "ERROR: ..."} — pensado
-        para logging y para que los tests puedan afirmar sobre el resultado.
+        Resumen {"<lugar>/<fuente>": "ok 8.4 µg/m³" | "sin clave" | "ERROR: ..."}
+        — pensado para logging y para que los tests puedan afirmar sobre él.
     """
     resumen: dict[str, str] = {}
 
@@ -50,6 +50,12 @@ def recolectar_una_vez() -> dict[str, str]:
 
         for fuente in FUENTES:
             clave = f"{lugar_id}/{fuente.id}"
+
+            if fuente.requiere_clave and not fuente.clave_configurada():
+                resumen[clave] = "sin clave"
+                logger.debug("%s: omitida (sin API key configurada)", clave)
+                continue
+
             try:
                 lectura = fuente.obtener(lugar)
                 resumen[clave] = f"ok {lectura.valor:.1f} {lectura.unidad}"

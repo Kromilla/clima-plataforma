@@ -12,8 +12,12 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+import huella
+import quiz
+import risk
 import storage
 from locations import DEFAULT_LUGAR, LUGARES
+from sources import firms
 from sources.base import Lectura
 from sources.registry import FUENTES, por_id
 
@@ -152,6 +156,14 @@ def estado_fuentes(lugar_id: str = DEFAULT_LUGAR):
     estados = {}
 
     for fuente in FUENTES:
+        if fuente.requiere_clave and not fuente.clave_configurada():
+            estados[fuente.id] = {
+                "estado": "gris",
+                "etiqueta": fuente.etiqueta,
+                "detalle": "sin API key",
+            }
+            continue
+
         ultima = storage.ultimo_valor(fuente.id, lugar_id, fuente.metrica)
         if ultima is None:
             estado, detalle = "rojo", "sin datos"
@@ -172,6 +184,206 @@ def estado_fuentes(lugar_id: str = DEFAULT_LUGAR):
         }
 
     return estados
+
+
+@app.get("/api/incendios")
+def obtener_incendios(lugar_id: str = DEFAULT_LUGAR, dias: int = 2):
+    """
+    Focos de calor para el mapa (Fase 3).
+
+    A diferencia del resto de endpoints, este consulta FIRMS en vivo: el mapa
+    necesita las coordenadas de cada foco, y `storage` solo guarda el conteo.
+
+    Nunca devuelve error al frontend: si falta la clave o FIRMS está caído,
+    responde con `disponible: false` y el motivo, para que el mapa muestre un
+    mensaje claro en vez de romperse.
+    """
+    _validar_lugar(lugar_id)
+
+    lugar = LUGARES[lugar_id].copy()
+    lugar["_id"] = lugar_id
+
+    try:
+        focos = firms.obtener_focos(lugar, dias=dias)
+    except firms.FirmsSinClave as exc:
+        return {
+            "disponible": False,
+            "motivo": "sin_clave",
+            "mensaje": str(exc),
+            "focos": [],
+            "centro": {"lat": lugar["lat"], "lon": lugar["lon"]},
+        }
+    except firms.FirmsSinDatos as exc:
+        return {
+            "disponible": False,
+            "motivo": "fuente_caida",
+            "mensaje": str(exc),
+            "focos": [],
+            "centro": {"lat": lugar["lat"], "lon": lugar["lon"]},
+        }
+
+    return {
+        "disponible": True,
+        "motivo": None,
+        "mensaje": None,
+        "centro": {"lat": lugar["lat"], "lon": lugar["lon"]},
+        "bbox": lugar["bbox"],
+        "dias": dias,
+        "focos": [
+            {
+                "lat": f.lat,
+                "lon": f.lon,
+                "frp": f.frp,
+                "confianza": f.confianza,
+                "ts": f.ts.isoformat(),
+                "satelite": f.satelite,
+                "dia_noche": f.dia_noche,
+                "distancia_km": f.distancia_km,
+            }
+            for f in focos
+        ],
+    }
+
+
+# ── Módulo A: huella de carbono ──────────────────────────────────────────────
+
+class RespuestasHuella(BaseModel):
+    transporte: str = "auto_gasolina"
+    km_semana: float = 0.0
+    pasajeros_auto: int = 1
+    horas_vuelo_anio: float = 0.0
+    kwh_mes: float = 0.0
+    personas_hogar: int = 1
+    gas_m3_mes: float = 0.0
+    glp_kg_mes: float = 0.0
+    usa_factor_colombia: bool = True
+    dieta: str = "carne_media"
+    residuos_kg_semana: float = 0.0
+    recicla: bool = False
+
+
+@app.get("/api/huella/opciones")
+def huella_opciones():
+    """Opciones válidas del formulario, para que el frontend no las duplique."""
+    return {
+        "transporte": list(huella.FACTOR_TRANSPORTE_KM),
+        "dieta": list(huella.FACTOR_DIETA_ANUAL_T),
+        "referencias": {
+            "promedio_colombia_t": huella.PROMEDIO_COLOMBIA_T,
+            "promedio_mundial_t": huella.PROMEDIO_MUNDIAL_T,
+            "objetivo_paris_2030_t": huella.OBJETIVO_PARIS_2030_T,
+        },
+    }
+
+
+@app.post("/api/huella/calcular")
+def huella_calcular(datos: RespuestasHuella):
+    """Calcula la huella anual y devuelve el desglose con recomendaciones."""
+    try:
+        respuestas = huella.Respuestas(**datos.model_dump())
+        resultado = huella.calcular(respuestas)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return {
+        "total_t": resultado.total_t,
+        "desglose": resultado.desglose,
+        "vs_colombia": resultado.vs_colombia,
+        "vs_mundial": resultado.vs_mundial,
+        "cumple_paris": resultado.cumple_paris,
+        "detalles": resultado.detalles,
+        "recomendaciones": huella.recomendaciones(respuestas, resultado),
+        "referencias": {
+            "promedio_colombia_t": huella.PROMEDIO_COLOMBIA_T,
+            "promedio_mundial_t": huella.PROMEDIO_MUNDIAL_T,
+            "objetivo_paris_2030_t": huella.OBJETIVO_PARIS_2030_T,
+        },
+    }
+
+
+# ── Módulo B: quiz ───────────────────────────────────────────────────────────
+
+class IntentoQuiz(BaseModel):
+    # {id_pregunta: indice_elegido}. Las claves llegan como texto en JSON.
+    respuestas: dict[str, int]
+
+
+@app.get("/api/quiz/preguntas")
+def quiz_preguntas():
+    """Preguntas sin las respuestas correctas."""
+    return quiz.preguntas_publicas()
+
+
+@app.post("/api/quiz/calificar")
+def quiz_calificar(intento: IntentoQuiz):
+    """Califica el intento y devuelve el solucionario con las explicaciones."""
+    try:
+        respuestas = {int(k): v for k, v in intento.respuestas.items()}
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=400, detail="Las claves deben ser ids numéricos de pregunta",
+        ) from exc
+
+    resultado = quiz.calificar(respuestas)
+    return {
+        "puntaje": resultado.puntaje,
+        "total": resultado.total,
+        "porcentaje": resultado.porcentaje,
+        "nivel": resultado.nivel,
+        "mensaje": resultado.mensaje,
+        "correctas": resultado.correctas,
+        "incorrectas": resultado.incorrectas,
+        "solucionario": quiz.solucionario(),
+        "compartir": quiz.texto_para_compartir(resultado),
+    }
+
+
+# ── Fase 4: predictor de riesgo ──────────────────────────────────────────────
+
+@app.get("/api/riesgo")
+def obtener_riesgo(lugar_id: str = DEFAULT_LUGAR):
+    """
+    Estimación experimental de riesgo de calor extremo.
+
+    El modelo se entrena al vuelo con el historial guardado. Con ~700 muestras
+    tarda menos de un segundo, así que no vale la pena persistirlo todavía.
+
+    Nunca devuelve 500: si falta historial responde `disponible: false` con
+    instrucciones, igual que el endpoint de incendios.
+    """
+    _validar_lugar(lugar_id)
+
+    try:
+        prediccion, metricas = risk.evaluar_riesgo(lugar_id)
+    except risk.DatosInsuficientes as exc:
+        return {
+            "disponible": False,
+            "mensaje": str(exc),
+            "etiqueta": "⚠️ Estimación experimental — no es una alerta oficial",
+        }
+
+    return {
+        "disponible": True,
+        "etiqueta": prediccion.etiqueta,
+        "probabilidad": prediccion.probabilidad,
+        "nivel": prediccion.nivel,
+        "mensaje": prediccion.mensaje,
+        "fecha_objetivo": prediccion.fecha_objetivo.date().isoformat(),
+        "ic_max_hoy": prediccion.ic_max_hoy,
+        "umbral_ic": prediccion.umbral_ic,
+        "modelo": {
+            "es_util": metricas.es_util,
+            "exactitud": metricas.exactitud,
+            "precision": metricas.precision,
+            "recall": metricas.recall,
+            "f1": metricas.f1,
+            "tasa_base": metricas.tasa_base,
+            "mejora_sobre_base": metricas.mejora_sobre_base,
+            "n_entrenamiento": metricas.n_entrenamiento,
+            "n_prueba": metricas.n_prueba,
+            "importancias": metricas.importancias,
+        },
+    }
 
 
 if __name__ == "__main__":

@@ -52,6 +52,48 @@ def revisar_alerta(valor: float, umbral: float) -> str | None:
     )
 
 
+# Distancia por defecto para avisar de un foco de calor.
+UMBRAL_FOCO_KM = 20.0
+
+
+def revisar_alerta_incendio(focos: list, umbral_km: float = UMBRAL_FOCO_KM) -> str | None:
+    """
+    Segunda regla de alerta: foco de calor cerca del lugar.
+
+    Sigue siendo un `if`, no un motor de reglas: el informe (§4) dice generalizar
+    cuando exista una tercera regla real, no antes.
+
+    Args:
+        focos: lista de sources.firms.Foco, ordenada por cercanía
+        umbral_km: distancia a partir de la cual se avisa
+
+    Returns:
+        Mensaje listo para Telegram, o None si no hay foco significativo cerca.
+    """
+    cercanos = [
+        f for f in focos
+        if f.distancia_km <= umbral_km and f.es_significativo
+    ]
+    if not cercanos:
+        return None
+
+    mas_cerca = cercanos[0]
+    intensidad = max(f.frp for f in cercanos)
+
+    lineas = [
+        "🔥 *ALERTA DE FOCO DE CALOR*\n",
+        f"Detectados *{len(cercanos)}* focos a menos de {umbral_km:.0f} km.",
+        f"El más cercano está a *{mas_cerca.distancia_km:.1f} km*.",
+        f"Intensidad máxima: {intensidad:.1f} MW",
+        "",
+        "💡 Puede afectar la calidad del aire. Si ves humo, cierra ventanas y "
+        "evita actividad intensa al aire libre.",
+        "",
+        "_Detección satelital (NASA FIRMS) — no confirma un incendio en tierra._",
+    ]
+    return "\n".join(lineas)
+
+
 def formato_estado(lectura: Lectura, umbral: float) -> str:
     """
     Genera el texto del comando /estado para mostrar al usuario.
