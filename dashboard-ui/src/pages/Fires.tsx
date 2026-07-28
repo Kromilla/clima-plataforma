@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Popup, Rectangle } from 'react-leaflet';
 import { Flame, KeyRound, AlertTriangle } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 import { fetchIncendios, type RespuestaIncendios, type Foco } from '../api';
 import { useLugar } from '../LugarContext';
+import { useFetch } from '../useFetch';
+import AvisoBackend from '../components/AvisoBackend';
 
 /** Color por intensidad radiativa (FRP, en megavatios). */
 function colorFoco(frp: number): string {
@@ -71,22 +73,16 @@ function PanelSinDatos({ data }: { data: RespuestaIncendios }) {
 
 export default function Fires() {
   const { lugarId, lugares } = useLugar();
-  const [data, setData] = useState<RespuestaIncendios | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [cargando, setCargando] = useState(true);
   const [dias, setDias] = useState(2);
 
-  useEffect(() => {
-    if (!lugarId) return;
-    setCargando(true);
-    fetchIncendios(lugarId, dias)
-      .then((d) => {
-        setData(d);
-        setError(null);
-      })
-      .catch((err) => setError(String(err)))
-      .finally(() => setCargando(false));
-  }, [lugarId, dias]);
+  const {
+    datos: data, error, cargando, recargar, intentos,
+  } = useFetch<RespuestaIncendios>(
+    () => fetchIncendios(lugarId!, dias),
+    [lugarId, dias],
+    // Los satélites pasan ~2 veces al día: refrescar cada 10 min sobra.
+    { activo: !!lugarId, intervaloMs: 10 * 60_000 },
+  );
 
   const nombreLugar = lugares.find((l) => l.id === lugarId)?.nombre ?? '';
   const focos: Foco[] = data?.focos ?? [];
@@ -115,9 +111,7 @@ export default function Fires() {
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-4 text-sm">
-          No se pudo cargar: {error}
-        </div>
+        <AvisoBackend error={error} intentos={intentos} onReintentar={recargar} />
       )}
 
       {cercanos.length > 0 && (

@@ -18,6 +18,8 @@ interface Props {
   /** Etiqueta corta opcional (ej. calidad del aire). */
   badge?: { texto: string; clase: string } | null;
   decimales?: number;
+  /** Distingue "aún cargando" de "no hay dato", que se veían igual. */
+  cargando?: boolean;
 }
 
 export default function MetricCard({
@@ -28,6 +30,7 @@ export default function MetricCard({
   unidadFallback = '',
   badge = null,
   decimales = 1,
+  cargando = false,
 }: Props) {
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col justify-between">
@@ -61,7 +64,9 @@ export default function MetricCard({
             {lectura.etiqueta_procedencia}
           </p>
         ) : (
-          <p className="mt-3 text-xs text-gray-400">Sin datos todavía</p>
+          <p className="mt-3 text-xs text-gray-400">
+            {cargando ? 'Cargando…' : 'Sin datos todavía'}
+          </p>
         )}
       </div>
     </div>

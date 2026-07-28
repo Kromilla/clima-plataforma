@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
@@ -8,7 +7,9 @@ import {
   type Lectura, type LecturasActuales,
 } from '../api';
 import { useLugar } from '../LugarContext';
+import { useFetch } from '../useFetch';
 import MetricCard from '../components/MetricCard';
+import AvisoBackend from '../components/AvisoBackend';
 
 /** Escala PM2.5 — misma que usa alerts.py en el backend. */
 function nivelPm25(v: number): { texto: string; clase: string } {
@@ -20,35 +21,31 @@ function nivelPm25(v: number): { texto: string; clase: string } {
   return { texto: 'Peligrosa', clase: 'bg-gray-800 text-white' };
 }
 
+interface Datos {
+  actual: LecturasActuales;
+  historial: Lectura[];
+}
+
 export default function AirQuality() {
   const { lugarId, lugares } = useLugar();
-  const [actual, setActual] = useState<LecturasActuales>({});
-  const [historial, setHistorial] = useState<Lectura[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [cargando, setCargando] = useState(true);
 
-  useEffect(() => {
-    if (!lugarId) return;
-    setCargando(true);
+  const { datos, error, cargando, recargar, intentos } = useFetch<Datos>(
+    async () => {
+      const [actual, historial] = await Promise.all([
+        fetchActual(lugarId!),
+        fetchHistorial(FUENTE_AIRE, lugarId!, 24),
+      ]);
+      return { actual, historial };
+    },
+    [lugarId],
+    { activo: !!lugarId },
+  );
 
-    Promise.all([
-      fetchActual(lugarId),
-      fetchHistorial(FUENTE_AIRE, lugarId, 24),
-    ])
-      .then(([act, hist]) => {
-        setActual(act);
-        setHistorial(hist);
-        setError(null);
-      })
-      .catch((err) => setError(String(err)))
-      .finally(() => setCargando(false));
-  }, [lugarId]);
+  const aire = datos?.actual[FUENTE_AIRE] ?? null;
+  const clima = datos?.actual[FUENTE_CLIMA] ?? null;
+  const nombreLugar = lugares.find((l) => l.id === lugarId)?.nombre ?? '';
 
-  const aire = actual[FUENTE_AIRE] ?? null;
-  const clima = actual[FUENTE_CLIMA] ?? null;
-  const nombreLugar = lugares.find((l) => l.id === lugarId)?.nombre ?? lugarId ?? '';
-
-  const datosGrafica = historial.map((h) => ({
+  const datosGrafica = (datos?.historial ?? []).map((h) => ({
     hora: new Date(h.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     pm25: h.valor,
   }));
@@ -57,16 +54,11 @@ export default function AirQuality() {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-gray-800">Aire y Clima</h2>
-        <p className="text-gray-500 mt-1">{nombreLugar}</p>
+        <p className="text-gray-500 mt-1">{nombreLugar || '…'}</p>
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-4 text-sm">
-          No se pudo cargar los datos: {error}
-          <div className="text-red-500 mt-1">
-            ¿Está corriendo el backend? <code>python api.py</code>
-          </div>
-        </div>
+        <AvisoBackend error={error} intentos={intentos} onReintentar={recargar} />
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -77,6 +69,7 @@ export default function AirQuality() {
           lectura={aire}
           unidadFallback="µg/m³"
           badge={aire ? nivelPm25(aire.valor) : null}
+          cargando={cargando && !datos}
         />
         <MetricCard
           titulo="Temperatura"
@@ -84,6 +77,7 @@ export default function AirQuality() {
           colorIcono="bg-orange-50"
           lectura={clima}
           unidadFallback="°C"
+          cargando={cargando && !datos}
         />
       </div>
 
@@ -120,8 +114,10 @@ export default function AirQuality() {
             </ResponsiveContainer>
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-gray-400 text-center px-6">
-              {cargando ? (
+              {cargando && !datos ? (
                 'Cargando…'
+              ) : error ? (
+                'Sin conexión con el backend.'
               ) : (
                 <>
                   <p>Todavía no hay suficiente historial para graficar.</p>

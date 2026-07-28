@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { Wind, Zap, Flame, Leaf, Brain, ThermometerSun } from 'lucide-react';
 import AirQuality from './pages/AirQuality';
@@ -9,6 +9,8 @@ import Quiz from './pages/Quiz';
 import Risk from './pages/Risk';
 import { fetchEstadoFuentes, type EstadoFuente } from './api';
 import { LugarProvider, useLugar } from './LugarContext';
+import { useFetch } from './useFetch';
+import AvisoBackend from './components/AvisoBackend';
 
 const COLOR_SEMAFORO: Record<string, string> = {
   verde: 'bg-green-500',
@@ -30,30 +32,27 @@ function Header() {
   const { lugarId } = useLugar();
   // Las fuentes vienen del backend (sources/registry.py). No se listan aquí:
   // agregar una fuente no debe obligar a tocar el dashboard.
-  const [estados, setEstados] = useState<Record<string, EstadoFuente>>({});
-
-  useEffect(() => {
-    if (!lugarId) return;
-
-    const cargar = () =>
-      fetchEstadoFuentes(lugarId).then(setEstados).catch(console.error);
-
-    cargar();
-    const id = setInterval(cargar, 60_000); // refresca el semáforo cada minuto
-    return () => clearInterval(id);
-  }, [lugarId]);
+  const { datos: estados, error } = useFetch<Record<string, EstadoFuente>>(
+    () => fetchEstadoFuentes(lugarId!),
+    [lugarId],
+    { activo: !!lugarId, intervaloMs: 60_000 },
+  );
 
   return (
     <header className="bg-white border-b border-gray-200 flex flex-wrap gap-y-2 items-center justify-between px-6 py-3 sticky top-0 z-[1000]">
       <h1 className="text-xl font-semibold text-gray-800">ClimaBot</h1>
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-        {Object.entries(estados).map(([id, e]) => (
-          <div key={id} className="flex items-center space-x-2" title={e.detalle}>
-            <span className="text-sm text-gray-500">{e.etiqueta}</span>
-            <div className={`w-3 h-3 rounded-full ${COLOR_SEMAFORO[e.estado] ?? 'bg-gray-300'}`} />
-            <span className="text-xs text-gray-400">{e.detalle}</span>
-          </div>
-        ))}
+        {error && !estados ? (
+          <span className="text-sm text-red-500">Sin conexión</span>
+        ) : (
+          Object.entries(estados ?? {}).map(([id, e]) => (
+            <div key={id} className="flex items-center space-x-2" title={e.detalle}>
+              <span className="text-sm text-gray-500">{e.etiqueta}</span>
+              <div className={`w-3 h-3 rounded-full ${COLOR_SEMAFORO[e.estado] ?? 'bg-gray-300'}`} />
+              <span className="text-xs text-gray-400">{e.detalle}</span>
+            </div>
+          ))
+        )}
       </div>
     </header>
   );
@@ -85,20 +84,22 @@ function Sidebar() {
 }
 
 function Layout({ children }: { children: ReactNode }) {
-  const { error } = useLugar();
+  const { error, intentos, reintentar, lugarId } = useLugar();
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <Header />
-      {error && (
-        <div className="bg-red-50 border-b border-red-200 text-red-700 px-6 py-3 text-sm">
-          No se pudo contactar el backend ({error}). Arráncalo con{' '}
-          <code className="bg-red-100 px-1.5 py-0.5 rounded">python api.py</code>
-        </div>
-      )}
       <div className="flex flex-1">
         <Sidebar />
-        <main className="flex-1 p-8 min-w-0">{children}</main>
+        <main className="flex-1 p-8 min-w-0">
+          {/* Sin lugar no se puede pedir nada: se muestra el aviso en vez de
+              dejar cada página colgada en "Cargando…" para siempre. */}
+          {error && !lugarId ? (
+            <AvisoBackend error={error} intentos={intentos} onReintentar={reintentar} />
+          ) : (
+            children
+          )}
+        </main>
       </div>
     </div>
   );

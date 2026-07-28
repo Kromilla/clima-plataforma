@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
 import { ThermometerSun, FlaskConical, Database } from 'lucide-react';
 import { fetchRiesgo, type Riesgo } from '../api';
 import { useLugar } from '../LugarContext';
+import { useFetch } from '../useFetch';
+import AvisoBackend from '../components/AvisoBackend';
 
 const COLOR_NIVEL: Record<string, { fondo: string; texto: string; barra: string }> = {
   bajo: { fondo: 'bg-green-50', texto: 'text-green-800', barra: 'bg-green-500' },
@@ -11,21 +12,15 @@ const COLOR_NIVEL: Record<string, { fondo: string; texto: string; barra: string 
 
 export default function Risk() {
   const { lugarId } = useLugar();
-  const [riesgo, setRiesgo] = useState<Riesgo | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [cargando, setCargando] = useState(true);
 
-  useEffect(() => {
-    if (!lugarId) return;
-    setCargando(true);
-    fetchRiesgo(lugarId)
-      .then((r) => {
-        setRiesgo(r);
-        setError(null);
-      })
-      .catch((e) => setError(String(e)))
-      .finally(() => setCargando(false));
-  }, [lugarId]);
+  const {
+    datos: riesgo, error, cargando, recargar, intentos,
+  } = useFetch<Riesgo>(
+    () => fetchRiesgo(lugarId!),
+    [lugarId],
+    // El modelo se cachea 1 h en el backend, no vale la pena refrescar antes.
+    { activo: !!lugarId, intervaloMs: 15 * 60_000 },
+  );
 
   const nivel = riesgo?.nivel ?? 'bajo';
   const colores = COLOR_NIVEL[nivel];
@@ -53,12 +48,10 @@ export default function Risk() {
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-4 text-sm">
-          {error}
-        </div>
+        <AvisoBackend error={error} intentos={intentos} onReintentar={recargar} />
       )}
 
-      {cargando ? (
+      {cargando && !riesgo ? (
         <div className="bg-white rounded-xl border border-gray-100 p-12 text-center text-gray-400">
           Entrenando el modelo…
         </div>

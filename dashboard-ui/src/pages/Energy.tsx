@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
@@ -8,7 +7,9 @@ import {
   type Lectura, type LecturasActuales,
 } from '../api';
 import { useLugar } from '../LugarContext';
+import { useFetch } from '../useFetch';
 import MetricCard from '../components/MetricCard';
+import AvisoBackend from '../components/AvisoBackend';
 
 /**
  * Referencia de intensidad de carbono. La red colombiana es mayoritariamente
@@ -21,33 +22,29 @@ function nivelIntensidad(v: number): { texto: string; clase: string } {
   return { texto: 'Muy alta', clase: 'bg-red-100 text-red-800' };
 }
 
+interface Datos {
+  actual: LecturasActuales;
+  historial: Lectura[];
+}
+
 export default function Energy() {
   const { lugarId } = useLugar();
-  const [actual, setActual] = useState<LecturasActuales>({});
-  const [historial, setHistorial] = useState<Lectura[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [cargando, setCargando] = useState(true);
 
-  useEffect(() => {
-    if (!lugarId) return;
-    setCargando(true);
+  const { datos, error, cargando, recargar, intentos } = useFetch<Datos>(
+    async () => {
+      const [actual, historial] = await Promise.all([
+        fetchActual(lugarId!),
+        fetchHistorial(FUENTE_ENERGIA, lugarId!, 48),
+      ]);
+      return { actual, historial };
+    },
+    [lugarId],
+    { activo: !!lugarId },
+  );
 
-    Promise.all([
-      fetchActual(lugarId),
-      fetchHistorial(FUENTE_ENERGIA, lugarId, 48),
-    ])
-      .then(([act, hist]) => {
-        setActual(act);
-        setHistorial(hist);
-        setError(null);
-      })
-      .catch((err) => setError(String(err)))
-      .finally(() => setCargando(false));
-  }, [lugarId]);
+  const energia = datos?.actual[FUENTE_ENERGIA] ?? null;
 
-  const energia = actual[FUENTE_ENERGIA] ?? null;
-
-  const datosGrafica = historial.map((h) => ({
+  const datosGrafica = (datos?.historial ?? []).map((h) => ({
     fecha: new Date(h.ts).toLocaleString([], {
       day: '2-digit', month: '2-digit', hour: '2-digit',
     }),
@@ -62,9 +59,7 @@ export default function Energy() {
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-4 text-sm">
-          No se pudo cargar los datos: {error}
-        </div>
+        <AvisoBackend error={error} intentos={intentos} onReintentar={recargar} />
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -75,6 +70,7 @@ export default function Energy() {
           lectura={energia}
           unidadFallback="gCO₂eq/kWh"
           badge={energia ? nivelIntensidad(energia.valor) : null}
+          cargando={cargando && !datos}
         />
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
@@ -123,8 +119,10 @@ export default function Energy() {
             </ResponsiveContainer>
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-gray-400 text-center px-6">
-              {cargando ? (
+              {cargando && !datos ? (
                 'Cargando…'
+              ) : error ? (
+                'Sin conexión con el backend.'
               ) : (
                 <>
                   <p>Todavía no hay suficiente historial para graficar.</p>

@@ -21,10 +21,12 @@ Regla: NUNCA deja una excepción sin capturar.
 from __future__ import annotations
 
 import logging
+import time
 
 import telegram
 from telegram import Update
 from telegram.constants import ParseMode
+from telegram.error import NetworkError
 from telegram.ext import Application, CommandHandler, ContextTypes
 
 import logging_setup
@@ -242,7 +244,19 @@ async def revisar_y_alertar(context: ContextTypes.DEFAULT_TYPE) -> None:
 def main() -> None:
     logger.info("Iniciando ClimaBot — ciudad: %s", DEFAULT_LUGAR)
 
-    app = Application.builder().token(cfg.TELEGRAM_BOT_TOKEN).build()
+    app = (
+        Application.builder()
+        .token(cfg.TELEGRAM_BOT_TOKEN)
+        # Los timeouts por defecto (5 s) son cortos para una conexión doméstica:
+        # bastaba un pico de latencia para tumbar el arranque.
+        .connect_timeout(30.0)
+        .read_timeout(30.0)
+        .write_timeout(30.0)
+        .pool_timeout(30.0)
+        .get_updates_connect_timeout(30.0)
+        .get_updates_read_timeout(30.0)
+        .build()
+    )
 
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("estado", cmd_estado))
@@ -265,8 +279,48 @@ def main() -> None:
         logger.info("Chequeo de alertas cada %ds", cfg.POLLING_INTERVALO_SEG)
 
     logger.info("Bot escuchando comandos…")
-    app.run_polling(drop_pending_updates=True)
+    # bootstrap_retries=-1 → reintentos infinitos al conectar.
+    # Con el valor por defecto (0), PTB abortaba con "Failed run number 0 of 0"
+    # ante un solo timeout de red al arrancar y el bot moría para siempre. Para
+    # un proceso que debe correr desatendido enviando alertas, un hipo de red no
+    # puede ser fatal.
+    app.run_polling(drop_pending_updates=True, bootstrap_retries=-1)
+
+
+def main_supervisado(max_reinicios: int = 0) -> None:
+    """
+    Ejecuta el bot reiniciándolo si muere por un fallo de red.
+
+    Es la última red de seguridad: `bootstrap_retries` cubre la conexión inicial
+    y PTB reintenta durante el polling, pero si aun así la excepción escapa,
+    preferimos reiniciar antes que dejar de enviar alertas en silencio.
+
+    Args:
+        max_reinicios: 0 = sin límite.
+    """
+    intentos = 0
+    while True:
+        try:
+            main()
+            return  # salida limpia (Ctrl+C)
+        except KeyboardInterrupt:
+            logger.info("Detenido por el usuario.")
+            return
+        except NetworkError as exc:
+            intentos += 1
+            if max_reinicios and intentos > max_reinicios:
+                logger.error("Demasiados reinicios (%d). Abandonando.", intentos)
+                raise
+            espera = min(5 * 2 ** (intentos - 1), 300)
+            logger.warning(
+                "El bot cayó por un problema de red (%s). Reiniciando en %d s… (intento %d)",
+                exc, espera, intentos,
+            )
+            time.sleep(espera)
+        except Exception:
+            logger.exception("El bot murió por un error no recuperable.")
+            raise
 
 
 if __name__ == "__main__":
-    main()
+    main_supervisado()
