@@ -7,3 +7,15 @@ venv/
 *.sqlite3
 .streamlit/secrets.toml
 .pytest_cache/
+
+# Logs — httpx registra la URL completa de Telegram (incluye el token en texto plano)
+*.log
+
+# Herramientas de edición
+.antigravity/
+.idea/
+.vscode/
+
+# Frontend
+node_modules/
+dist/

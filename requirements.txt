@@ -1,8 +1,19 @@
-requests
-python-telegram-bot
-streamlit
-folium
-streamlit-folium
-scikit-learn
-pandas
-pytest
+# ── Núcleo (Fase 1: bot + fuentes) ────────────────────────────────────────────
+requests>=2.31.0
+# El extra [job-queue] es obligatorio: sin él el bot arranca pero NO envía
+# alertas automáticas (solo responde comandos).
+python-telegram-bot[job-queue]>=20.7
+
+# ── API del dashboard (Fase 2) ────────────────────────────────────────────────
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.6.0
+
+# ── Tests ─────────────────────────────────────────────────────────────────────
+pytest>=8.0.0
+httpx>=0.27.0          # requerido por fastapi.testclient
+
+# ── Fases futuras ─────────────────────────────────────────────────────────────
+# El dashboard es React + Vite (ver dashboard-ui/), no Streamlit.
+# folium/streamlit se reevalúan en la Fase 3 (mapa de incendios).
+# scikit-learn + pandas entran en la Fase 4 (predictor de riesgo).

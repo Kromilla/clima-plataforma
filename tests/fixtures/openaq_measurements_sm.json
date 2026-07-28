@@ -1,0 +1,32 @@
+{
+  "meta": {
+    "found": 1,
+    "limit": 1,
+    "total": 1,
+    "page": 1,
+    "pages": 1
+  },
+  "results": [
+    {
+      "id": 9876543,
+      "parameter": {
+        "id": 2,
+        "name": "pm25",
+        "units": "µg/m³",
+        "displayName": "PM2.5"
+      },
+      "value": 38.5,
+      "date": {
+        "utc": "2026-07-27T22:00:00Z",
+        "local": "2026-07-27T17:00:00-05:00"
+      },
+      "coordinates": {
+        "latitude": 11.2408,
+        "longitude": -74.1990
+      },
+      "location": "Santa Marta - Centro",
+      "country": "CO",
+      "city": "Santa Marta"
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "meta": {
+    "found": 1,
+    "limit": 10,
+    "total": 1,
+    "page": 1,
+    "pages": 1
+  },
+  "results": [
+    {
+      "id": 123456,
+      "name": "Santa Marta - Centro",
+      "entity": "governmental",
+      "country": {
+        "id": 32,
+        "code": "CO",
+        "name": "Colombia"
+      },
+      "city": "Santa Marta",
+      "parameters": [
+        {
+          "id": 2,
+          "name": "pm25",
+          "units": "µg/m³",
+          "displayName": "PM2.5",
+          "lastValue": 38.5,
+          "lastUpdated": "2026-07-27T22:00:00Z",
+          "average": 32.1,
+          "min": 10.2,
+          "max": 65.3,
+          "parameterId": 2,
+          "count": 720
+        }
+      ],
+      "coordinates": {
+        "latitude": 11.2408,
+        "longitude": -74.1990
+      },
+      "timezone": "America/Bogota",
+      "isActive": true
+    }
+  ]
+}
