@@ -13,12 +13,9 @@ interface Props {
   icono: ReactNode;
   colorIcono: string;
   lectura: Lectura | null;
-  /** Se muestra en vez del valor cuando aún no hay dato. */
   unidadFallback?: string;
-  /** Etiqueta corta opcional (ej. calidad del aire). */
   badge?: { texto: string; clase: string } | null;
   decimales?: number;
-  /** Distingue "aún cargando" de "no hay dato", que se veían igual. */
   cargando?: boolean;
 }
 
@@ -33,40 +30,44 @@ export default function MetricCard({
   cargando = false,
 }: Props) {
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col justify-between">
-      <div className="flex justify-between items-start">
-        <div className={`p-2 rounded-lg ${colorIcono}`}>{icono}</div>
-        {badge && (
-          <span className={`px-3 py-1 text-xs font-medium rounded-full ${badge.clase}`}>
-            {badge.texto}
-          </span>
-        )}
+    <div className="card card-pad flex flex-col justify-between transition-shadow hover:shadow-card-hover">
+      <div className="flex items-start justify-between">
+        <div className={`grid h-11 w-11 place-items-center rounded-xl ${colorIcono}`}>{icono}</div>
+        {badge && <span className={`badge ${badge.clase}`}>{badge.texto}</span>}
       </div>
 
-      <div className="mt-4">
-        <h3 className="text-sm font-medium text-gray-500">{titulo}</h3>
-        <div className="flex items-baseline mt-1 space-x-2">
-          <span className="text-3xl font-bold text-gray-900">
-            {lectura ? lectura.valor.toFixed(decimales) : '--'}
-          </span>
-          <span className="text-sm text-gray-500">
-            {lectura ? lectura.unidad : unidadFallback}
-          </span>
-        </div>
+      <div className="mt-5">
+        <h3 className="text-sm font-medium text-muted">{titulo}</h3>
 
-        {lectura ? (
-          <p
-            className={`mt-3 text-xs leading-relaxed ${
-              lectura.es_reciente ? 'text-gray-400' : 'text-amber-600'
-            }`}
-            title={lectura.estacion_nombre}
-          >
-            {lectura.etiqueta_procedencia}
-          </p>
+        {cargando && !lectura ? (
+          <div className="mt-2 space-y-2">
+            <div className="skeleton h-9 w-28" />
+            <div className="skeleton h-3 w-40" />
+          </div>
         ) : (
-          <p className="mt-3 text-xs text-gray-400">
-            {cargando ? 'Cargando…' : 'Sin datos todavía'}
-          </p>
+          <>
+            <div className="mt-1 flex items-baseline gap-2">
+              <span className="font-display text-4xl font-bold tabular-nums text-heading">
+                {lectura ? lectura.valor.toFixed(decimales) : '—'}
+              </span>
+              <span className="text-sm text-muted">
+                {lectura ? lectura.unidad : unidadFallback}
+              </span>
+            </div>
+
+            {lectura ? (
+              <p
+                className={`mt-3 text-xs leading-relaxed ${
+                  lectura.es_reciente ? 'text-muted' : 'text-amber-600 dark:text-amber-400'
+                }`}
+                title={lectura.estacion_nombre}
+              >
+                {lectura.etiqueta_procedencia}
+              </p>
+            ) : (
+              <p className="mt-3 text-xs text-muted">Sin datos todavía</p>
+            )}
+          </>
         )}
       </div>
     </div>

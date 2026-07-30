@@ -2,8 +2,135 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  background-color: #f3f4f6;
-  color: #1f2937;
+/* ── Tokens de tema ────────────────────────────────────────────────────────
+   Los colores se expresan como canales RGB para poder aplicarles opacidad con
+   Tailwind (rgb(var(--c-x) / <alpha-value>)). El modo oscuro solo redefine
+   estas variables; ningún componente necesita saber en qué tema está. */
+:root {
+  --c-app: 241 245 249;          /* slate-100, un lienzo suave */
+  --c-surface: 255 255 255;      /* cartas */
+  --c-surface-soft: 248 250 252; /* tiles internas */
+  --c-line: 226 232 240;         /* bordes */
+  --c-heading: 15 23 42;         /* títulos */
+  --c-body: 51 65 85;            /* texto */
+  --c-muted: 100 116 139;        /* secundario */
+  --c-brand: 13 148 136;         /* teal-600, mar Caribe */
+  --c-brand-soft: 204 251 241;   /* teal-100 */
+  --c-brand-strong: 15 118 110;  /* teal-700 */
+
+  /* Fondo ambiental del app-shell (evoca cielo/mar de la costa). */
+  --grad-app:
+    radial-gradient(60rem 40rem at 100% -10%, rgb(13 148 136 / 0.08), transparent 60%),
+    radial-gradient(50rem 40rem at -10% 110%, rgb(14 165 233 / 0.07), transparent 55%);
+}
+
+html.dark {
+  --c-app: 2 6 23;               /* slate-950 */
+  --c-surface: 15 23 42;         /* slate-900 */
+  --c-surface-soft: 30 41 59;    /* slate-800 */
+  --c-line: 39 51 74;
+  --c-heading: 241 245 249;
+  --c-body: 203 213 225;
+  --c-muted: 148 163 184;
+  --c-brand: 45 212 191;         /* teal-400, más luminoso sobre oscuro */
+  --c-brand-soft: 19 78 74;      /* teal-900 */
+  --c-brand-strong: 94 234 212;
+
+  --grad-app:
+    radial-gradient(60rem 40rem at 100% -10%, rgb(13 148 136 / 0.16), transparent 60%),
+    radial-gradient(50rem 40rem at -10% 110%, rgb(14 165 233 / 0.12), transparent 55%);
+}
+
+@layer base {
+  body {
+    @apply bg-app text-body font-sans antialiased;
+    background-image: var(--grad-app);
+    background-attachment: fixed;
+  }
+  h1, h2, h3, h4 {
+    @apply font-display text-heading;
+  }
+  /* Scrollbar acorde al tema. */
+  * {
+    scrollbar-color: rgb(var(--c-muted) / 0.4) transparent;
+  }
+  *::-webkit-scrollbar { width: 10px; height: 10px; }
+  *::-webkit-scrollbar-thumb {
+    background: rgb(var(--c-muted) / 0.35);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  *::-webkit-scrollbar-thumb:hover { background: rgb(var(--c-muted) / 0.6); background-clip: content-box; }
+}
+
+@layer components {
+  /* Superficie base de tarjeta. */
+  .card {
+    @apply bg-surface border border-line rounded-2xl shadow-card;
+  }
+  .card-pad { @apply p-5 sm:p-6; }
+
+  /* Tile interna (stats pequeños). */
+  .tile {
+    @apply bg-surface-soft border border-line/70 rounded-xl px-4 py-3;
+  }
+
+  /* Insignias de estado, legibles en ambos temas. */
+  .badge { @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold; }
+  .badge-good  { @apply bg-emerald-500/15 text-emerald-700 dark:text-emerald-300; }
+  .badge-warn  { @apply bg-amber-500/15 text-amber-700 dark:text-amber-300; }
+  .badge-bad   { @apply bg-red-500/15 text-red-700 dark:text-red-300; }
+  .badge-info  { @apply bg-sky-500/15 text-sky-700 dark:text-sky-300; }
+  .badge-muted { @apply bg-slate-500/15 text-slate-600 dark:text-slate-300; }
+
+  /* Puntos del semáforo. */
+  .dot { @apply w-2.5 h-2.5 rounded-full; }
+
+  /* Botón primario / secundario. */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold
+           transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary { @apply btn bg-brand text-white hover:bg-brand-strong; }
+  .btn-ghost   { @apply btn border border-line text-body hover:bg-surface-soft; }
+
+  /* Campo de formulario. */
+  .field {
+    @apply w-full bg-surface border border-line rounded-xl px-3 py-2 text-sm text-body
+           placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand/40
+           focus:border-brand/40 transition;
+  }
+
+  /* Esqueleto de carga. */
+  .skeleton {
+    @apply relative overflow-hidden bg-surface-soft rounded-lg;
+  }
+  .skeleton::after {
+    content: '';
+    @apply absolute inset-0;
+    background: linear-gradient(90deg, transparent, rgb(var(--c-muted) / 0.12), transparent);
+    animation: shimmer 1.4s infinite;
+    transform: translateX(-100%);
+  }
+}
+
+/* ── Mapa (Leaflet) en modo oscuro ─────────────────────────────────────────
+   Los tiles de OpenStreetMap son claros; se filtran para un mapa oscuro
+   pasable, y el popup se pinta con los colores del tema. */
+html.dark .leaflet-container { background: #0b1220; }
+html.dark .leaflet-tile {
+  filter: brightness(0.65) invert(1) contrast(0.95) hue-rotate(180deg) saturate(0.7);
+}
+html.dark .leaflet-control-attribution,
+html.dark .leaflet-bar a {
+  background: #1e293b !important;
+  color: #94a3b8 !important;
+}
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: rgb(var(--c-surface)) !important;
+  color: rgb(var(--c-body)) !important;
+  box-shadow: 0 8px 28px -8px rgb(15 23 42 / 0.4) !important;
 }

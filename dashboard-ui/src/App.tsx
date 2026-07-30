@@ -1,6 +1,8 @@
-import { type ReactNode } from 'react';
-import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { Wind, Zap, Flame, Leaf, Brain, ThermometerSun } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
+import { BrowserRouter, Routes, Route, NavLink, useLocation } from 'react-router-dom';
+import {
+  Wind, Zap, Flame, Leaf, Brain, ThermometerSun, Moon, Sun, Menu, X,
+} from 'lucide-react';
 import AirQuality from './pages/AirQuality';
 import Energy from './pages/Energy';
 import Fires from './pages/Fires';
@@ -10,13 +12,14 @@ import Risk from './pages/Risk';
 import { fetchEstadoFuentes, type EstadoFuente } from './api';
 import { LugarProvider, useLugar } from './LugarContext';
 import { useFetch } from './useFetch';
+import { TemaProvider, useTema } from './useTema';
 import AvisoBackend from './components/AvisoBackend';
 
 const COLOR_SEMAFORO: Record<string, string> = {
-  verde: 'bg-green-500',
-  amarillo: 'bg-yellow-500',
+  verde: 'bg-emerald-500',
+  amarillo: 'bg-amber-500',
   rojo: 'bg-red-500',
-  gris: 'bg-gray-300',
+  gris: 'bg-slate-400',
 };
 
 const NAVEGACION = [
@@ -28,76 +31,146 @@ const NAVEGACION = [
   { ruta: '/quiz', etiqueta: 'Quiz', icono: Brain },
 ];
 
-function Header() {
+/** Marca: una ola bajo la Sierra Nevada, guiño a Santa Marta. */
+function Marca() {
+  return (
+    <div className="flex items-center gap-2.5">
+      <div className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-brand to-sky-500 shadow-glow">
+        <svg viewBox="0 0 24 24" className="h-5 w-5 text-white" fill="none">
+          <path d="M3 14l4-6 3 4 4-7 3 5 4-3" stroke="currentColor" strokeWidth="2"
+            strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
+          <path d="M3 18c2 0 2-1.5 4-1.5s2 1.5 4 1.5 2-1.5 4-1.5 2 1.5 4 1.5"
+            stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </div>
+      <div className="leading-tight">
+        <div className="font-display text-lg font-bold text-heading">ClimaBot</div>
+        <div className="text-[11px] font-medium text-muted">Santa Marta</div>
+      </div>
+    </div>
+  );
+}
+
+function SemaforoFuentes() {
   const { lugarId } = useLugar();
-  // Las fuentes vienen del backend (sources/registry.py). No se listan aquí:
-  // agregar una fuente no debe obligar a tocar el dashboard.
   const { datos: estados, error } = useFetch<Record<string, EstadoFuente>>(
     () => fetchEstadoFuentes(lugarId!),
     [lugarId],
     { activo: !!lugarId, intervaloMs: 60_000 },
   );
 
+  if (error && !estados) {
+    return <span className="text-sm text-red-500">Sin conexión</span>;
+  }
+
   return (
-    <header className="bg-white border-b border-gray-200 flex flex-wrap gap-y-2 items-center justify-between px-6 py-3 sticky top-0 z-[1000]">
-      <h1 className="text-xl font-semibold text-gray-800">ClimaBot</h1>
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-        {error && !estados ? (
-          <span className="text-sm text-red-500">Sin conexión</span>
-        ) : (
-          Object.entries(estados ?? {}).map(([id, e]) => (
-            <div key={id} className="flex items-center space-x-2" title={e.detalle}>
-              <span className="text-sm text-gray-500">{e.etiqueta}</span>
-              <div className={`w-3 h-3 rounded-full ${COLOR_SEMAFORO[e.estado] ?? 'bg-gray-300'}`} />
-              <span className="text-xs text-gray-400">{e.detalle}</span>
-            </div>
-          ))
-        )}
-      </div>
-    </header>
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
+      {Object.entries(estados ?? {}).map(([id, e]) => (
+        <div key={id} className="flex items-center gap-2" title={`${e.etiqueta}: ${e.detalle}`}>
+          <span className={`dot ${COLOR_SEMAFORO[e.estado] ?? 'bg-slate-400'}`} />
+          <span className="text-sm font-medium text-body">{e.etiqueta}</span>
+          <span className="hidden text-xs text-muted sm:inline">{e.detalle}</span>
+        </div>
+      ))}
+    </div>
   );
 }
 
-function Sidebar() {
-  const location = useLocation();
-
+function BotonTema() {
+  const { tema, alternar } = useTema();
   return (
-    <div className="w-56 bg-white border-r border-gray-200 flex-shrink-0">
-      <nav className="py-6 px-3 space-y-1 sticky top-20">
-        {NAVEGACION.map(({ ruta, etiqueta, icono: Icono }) => (
-          <Link
-            key={ruta}
-            to={ruta}
-            className={`flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors ${
-              location.pathname === ruta
-                ? 'bg-green-50 text-green-700'
-                : 'text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            <Icono className="w-5 h-5 flex-shrink-0" />
-            <span className="font-medium text-sm">{etiqueta}</span>
-          </Link>
-        ))}
-      </nav>
-    </div>
+    <button
+      onClick={alternar}
+      className="grid h-9 w-9 place-items-center rounded-xl border border-line text-muted
+                 transition-colors hover:bg-surface-soft hover:text-heading"
+      title={tema === 'oscuro' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+      aria-label="Cambiar tema"
+    >
+      {tema === 'oscuro' ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
+    </button>
+  );
+}
+
+function Sidebar({ abierto, cerrar }: { abierto: boolean; cerrar: () => void }) {
+  return (
+    <>
+      {/* Telón en móvil */}
+      {abierto && (
+        <div className="fixed inset-0 z-30 bg-slate-950/40 backdrop-blur-sm lg:hidden" onClick={cerrar} />
+      )}
+
+      <aside
+        className={`fixed z-40 flex h-full w-64 flex-col border-r border-line bg-surface/80 backdrop-blur-xl
+                    transition-transform lg:static lg:z-0 lg:h-auto lg:translate-x-0
+                    ${abierto ? 'translate-x-0' : '-translate-x-full'}`}
+      >
+        <div className="flex items-center justify-between px-5 py-5">
+          <Marca />
+          <button className="text-muted lg:hidden" onClick={cerrar} aria-label="Cerrar menú">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <nav className="flex-1 space-y-1 px-3 pb-6">
+          {NAVEGACION.map(({ ruta, etiqueta, icono: Icono }) => (
+            <NavLink
+              key={ruta}
+              to={ruta}
+              end={ruta === '/'}
+              onClick={cerrar}
+              className={({ isActive }) =>
+                `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
+                  isActive
+                    ? 'bg-brand/10 text-brand-strong dark:text-brand'
+                    : 'text-body hover:bg-surface-soft'
+                }`
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  <Icono className={`h-5 w-5 flex-shrink-0 ${isActive ? '' : 'text-muted group-hover:text-body'}`} />
+                  <span>{etiqueta}</span>
+                </>
+              )}
+            </NavLink>
+          ))}
+        </nav>
+
+        <div className="border-t border-line px-5 py-4 text-[11px] leading-relaxed text-muted">
+          Datos abiertos · Open-Meteo, XM y NASA FIRMS.
+          <br />No es una alerta oficial.
+        </div>
+      </aside>
+    </>
   );
 }
 
 function Layout({ children }: { children: ReactNode }) {
   const { error, intentos, reintentar, lugarId } = useLugar();
+  const [menu, setMenu] = useState(false);
+  const { pathname } = useLocation();
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <Header />
-      <div className="flex flex-1">
-        <Sidebar />
-        <main className="flex-1 p-8 min-w-0">
-          {/* Sin lugar no se puede pedir nada: se muestra el aviso en vez de
-              dejar cada página colgada en "Cargando…" para siempre. */}
+    <div className="flex min-h-screen">
+      <Sidebar abierto={menu} cerrar={() => setMenu(false)} />
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="sticky top-0 z-20 flex items-center gap-4 border-b border-line
+                           bg-app/70 px-4 py-3 backdrop-blur-xl sm:px-6">
+          <button className="text-muted lg:hidden" onClick={() => setMenu(true)} aria-label="Abrir menú">
+            <Menu className="h-5 w-5" />
+          </button>
+          <div className="min-w-0 flex-1">
+            <SemaforoFuentes />
+          </div>
+          <BotonTema />
+        </header>
+
+        <main className="mx-auto w-full max-w-6xl flex-1 p-4 sm:p-6 lg:p-8">
           {error && !lugarId ? (
             <AvisoBackend error={error} intentos={intentos} onReintentar={reintentar} />
           ) : (
-            children
+            <div key={pathname} className="animate-fade-up">{children}</div>
           )}
         </main>
       </div>
@@ -107,9 +180,10 @@ function Layout({ children }: { children: ReactNode }) {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <LugarProvider>
-        <Layout>
+    <TemaProvider>
+      <BrowserRouter>
+        <LugarProvider>
+          <Layout>
           <Routes>
             <Route path="/" element={<AirQuality />} />
             <Route path="/energia" element={<Energy />} />
@@ -117,9 +191,10 @@ export default function App() {
             <Route path="/riesgo" element={<Risk />} />
             <Route path="/huella" element={<Footprint />} />
             <Route path="/quiz" element={<Quiz />} />
-          </Routes>
-        </Layout>
-      </LugarProvider>
-    </BrowserRouter>
+            </Routes>
+          </Layout>
+        </LugarProvider>
+      </BrowserRouter>
+    </TemaProvider>
   );
 }

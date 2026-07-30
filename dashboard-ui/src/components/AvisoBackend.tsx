@@ -14,30 +14,27 @@ interface Props {
 
 export default function AvisoBackend({ error, intentos, onReintentar }: Props) {
   return (
-    <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+    <div className="card card-pad border-red-300/60 dark:border-red-500/30">
       <div className="flex items-start gap-3">
-        <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-        <div className="flex-1 min-w-0">
-          <p className="font-medium text-red-800">No se pudo conectar con el backend</p>
-          <p className="text-sm text-red-700 mt-1">
+        <div className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-xl bg-red-500/15">
+          <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold text-heading">No se pudo conectar con el backend</p>
+          <p className="mt-1 text-sm text-body">
             Arráncalo con{' '}
-            <code className="bg-red-100 px-1.5 py-0.5 rounded">python api.py</code>
+            <code className="rounded bg-surface-soft px-1.5 py-0.5 text-xs">python api.py</code>
             {' '}— la página se reconectará sola.
           </p>
           {intentos > 0 && (
-            <p className="text-xs text-red-500 mt-1.5 flex items-center gap-1.5">
-              <RefreshCw className="w-3 h-3 animate-spin" />
+            <p className="mt-2 flex items-center gap-1.5 text-xs text-muted">
+              <RefreshCw className="h-3 w-3 animate-spin" />
               Reintentando… ({intentos} {intentos === 1 ? 'intento' : 'intentos'})
             </p>
           )}
-          <p className="text-xs text-red-400 mt-1.5 font-mono truncate" title={error}>
-            {error}
-          </p>
+          <p className="mt-1.5 truncate font-mono text-xs text-muted" title={error}>{error}</p>
         </div>
-        <button
-          onClick={onReintentar}
-          className="flex-shrink-0 text-sm border border-red-300 text-red-700 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors"
-        >
+        <button onClick={onReintentar} className="btn-ghost flex-shrink-0 !py-1.5 text-sm">
           Reintentar
         </button>
       </div>
