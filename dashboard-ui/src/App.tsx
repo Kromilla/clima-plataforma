@@ -8,9 +8,11 @@ import Energy from './pages/Energy';
 import Fires from './pages/Fires';
 import Risk from './pages/Risk';
 import { fetchEstadoFuentes, type EstadoFuente } from './api';
-import { LugarProvider, useLugar } from './LugarContext';
+import { useLugar } from './LugarContext';
+import { LugarProvider } from './LugarProvider';
 import { useFetch } from './useFetch';
-import { TemaProvider, useTema } from './useTema';
+import { useTema } from './useTema';
+import { TemaProvider } from './TemaProvider';
 import AvisoBackend from './components/AvisoBackend';
 
 const COLOR_SEMAFORO: Record<string, string> = {

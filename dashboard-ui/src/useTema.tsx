@@ -1,52 +1,27 @@
 /**
- * useTema.tsx — Tema claro/oscuro compartido por toda la app.
+ * useTema.tsx — Contexto y hooks del tema claro/oscuro.
  *
  * Es un contexto (y no un hook suelto) para que al alternar el tema se
  * re-rendericen también las gráficas, que necesitan recalcular sus colores de
  * ejes y rejilla: Recharts no lee variables CSS.
  *
- * El tema inicial ya lo aplica un script en index.html antes de pintar, para
- * que no haya parpadeo.
+ * El componente `TemaProvider` vive en su propio archivo para que este módulo
+ * exporte solo hooks/contexto (regla react-refresh: un archivo no debe mezclar
+ * componentes con no-componentes).
  */
-import {
-  createContext, useCallback, useContext, useEffect, useState, type ReactNode,
-} from 'react';
+import { createContext, useContext } from 'react';
 
 export type Tema = 'claro' | 'oscuro';
 
-interface TemaState {
+export interface TemaState {
   tema: Tema;
   alternar: () => void;
 }
 
-const Ctx = createContext<TemaState>({ tema: 'claro', alternar: () => {} });
-
-function temaInicial(): Tema {
-  return document.documentElement.classList.contains('dark') ? 'oscuro' : 'claro';
-}
-
-export function TemaProvider({ children }: { children: ReactNode }) {
-  const [tema, setTema] = useState<Tema>(temaInicial);
-
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', tema === 'oscuro');
-    try {
-      localStorage.setItem('tema', tema);
-    } catch {
-      /* almacenamiento no disponible: no es crítico */
-    }
-  }, [tema]);
-
-  const alternar = useCallback(
-    () => setTema((t) => (t === 'oscuro' ? 'claro' : 'oscuro')),
-    [],
-  );
-
-  return <Ctx.Provider value={{ tema, alternar }}>{children}</Ctx.Provider>;
-}
+export const TemaCtx = createContext<TemaState>({ tema: 'claro', alternar: () => {} });
 
 export function useTema() {
-  return useContext(Ctx);
+  return useContext(TemaCtx);
 }
 
 /** Colores para las gráficas de Recharts según el tema activo. */

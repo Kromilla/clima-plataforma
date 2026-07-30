@@ -1,16 +1,13 @@
 /**
- * LugarContext.tsx — Provee el lugar activo a toda la app.
+ * LugarContext.tsx — Contexto y hook del lugar activo.
  *
- * Se resuelve desde /api/lugares. Antes se pedía una sola vez: si el backend no
- * estaba listo en ese instante, `lugarId` quedaba null para siempre y TODAS las
- * pestañas se quedaban muertas aunque la API volviera. Ahora reintenta con
- * espera creciente hasta conseguirlo.
+ * El componente `LugarProvider` vive en su propio archivo para que este módulo
+ * exporte solo el contexto y el hook (regla react-refresh).
  */
-import { createContext, useContext, type ReactNode } from 'react';
-import { fetchLugares, type Lugar } from './api';
-import { useFetch } from './useFetch';
+import { createContext, useContext } from 'react';
+import { type Lugar } from './api';
 
-interface LugarState {
+export interface LugarState {
   lugarId: string | null;
   lugares: Lugar[];
   error: string | null;
@@ -19,7 +16,7 @@ interface LugarState {
   reintentar: () => void;
 }
 
-const Ctx = createContext<LugarState>({
+export const LugarCtx = createContext<LugarState>({
   lugarId: null,
   lugares: [],
   error: null,
@@ -28,27 +25,5 @@ const Ctx = createContext<LugarState>({
 });
 
 export function useLugar() {
-  return useContext(Ctx);
-}
-
-export function LugarProvider({ children }: { children: ReactNode }) {
-  // Los lugares casi nunca cambian: basta con reintentar si falla, sin refresco
-  // periódico una vez que se obtuvieron.
-  const { datos, error, intentos, recargar } = useFetch(fetchLugares, [], {
-    intervaloMs: 0,
-  });
-
-  return (
-    <Ctx.Provider
-      value={{
-        lugarId: datos?.default ?? null,
-        lugares: datos?.lugares ?? [],
-        error,
-        intentos,
-        reintentar: recargar,
-      }}
-    >
-      {children}
-    </Ctx.Provider>
-  );
+  return useContext(LugarCtx);
 }
