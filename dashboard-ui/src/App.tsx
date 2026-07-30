@@ -1,13 +1,11 @@
 import { useState, type ReactNode } from 'react';
-import { BrowserRouter, Routes, Route, NavLink, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom';
 import {
-  Wind, Zap, Flame, Leaf, Brain, ThermometerSun, Moon, Sun, Menu, X,
+  Wind, Zap, Flame, ThermometerSun, Moon, Sun, Menu, X,
 } from 'lucide-react';
 import AirQuality from './pages/AirQuality';
 import Energy from './pages/Energy';
 import Fires from './pages/Fires';
-import Footprint from './pages/Footprint';
-import Quiz from './pages/Quiz';
 import Risk from './pages/Risk';
 import { fetchEstadoFuentes, type EstadoFuente } from './api';
 import { LugarProvider, useLugar } from './LugarContext';
@@ -27,8 +25,6 @@ const NAVEGACION = [
   { ruta: '/energia', etiqueta: 'Energía', icono: Zap },
   { ruta: '/incendios', etiqueta: 'Incendios', icono: Flame },
   { ruta: '/riesgo', etiqueta: 'Riesgo de calor', icono: ThermometerSun },
-  { ruta: '/huella', etiqueta: 'Mi huella', icono: Leaf },
-  { ruta: '/quiz', etiqueta: 'Quiz', icono: Brain },
 ];
 
 /** Marca: una ola bajo la Sierra Nevada, guiño a Santa Marta. */
@@ -189,8 +185,8 @@ export default function App() {
             <Route path="/energia" element={<Energy />} />
             <Route path="/incendios" element={<Fires />} />
             <Route path="/riesgo" element={<Risk />} />
-            <Route path="/huella" element={<Footprint />} />
-            <Route path="/quiz" element={<Quiz />} />
+            {/* Cualquier ruta desconocida (incluidas /huella y /quiz retiradas) vuelve al inicio. */}
+            <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Layout>
         </LugarProvider>

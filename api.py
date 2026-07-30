@@ -12,8 +12,6 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-import huella
-import quiz
 import risk
 import storage
 from locations import DEFAULT_LUGAR, LUGARES
@@ -248,99 +246,6 @@ def obtener_incendios(
             }
             for f in focos
         ],
-    }
-
-
-# ── Módulo A: huella de carbono ──────────────────────────────────────────────
-
-class RespuestasHuella(BaseModel):
-    transporte: str = "auto_gasolina"
-    km_semana: float = 0.0
-    pasajeros_auto: int = 1
-    horas_vuelo_anio: float = 0.0
-    kwh_mes: float = 0.0
-    personas_hogar: int = 1
-    gas_m3_mes: float = 0.0
-    glp_kg_mes: float = 0.0
-    usa_factor_colombia: bool = True
-    dieta: str = "carne_media"
-    residuos_kg_semana: float = 0.0
-    recicla: bool = False
-
-
-@app.get("/api/huella/opciones")
-def huella_opciones():
-    """Opciones válidas del formulario, para que el frontend no las duplique."""
-    return {
-        "transporte": list(huella.FACTOR_TRANSPORTE_KM),
-        "dieta": list(huella.FACTOR_DIETA_ANUAL_T),
-        "referencias": {
-            "promedio_colombia_t": huella.PROMEDIO_COLOMBIA_T,
-            "promedio_mundial_t": huella.PROMEDIO_MUNDIAL_T,
-            "objetivo_paris_2030_t": huella.OBJETIVO_PARIS_2030_T,
-        },
-    }
-
-
-@app.post("/api/huella/calcular")
-def huella_calcular(datos: RespuestasHuella):
-    """Calcula la huella anual y devuelve el desglose con recomendaciones."""
-    try:
-        respuestas = huella.Respuestas(**datos.model_dump())
-        resultado = huella.calcular(respuestas)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    return {
-        "total_t": resultado.total_t,
-        "desglose": resultado.desglose,
-        "vs_colombia": resultado.vs_colombia,
-        "vs_mundial": resultado.vs_mundial,
-        "cumple_paris": resultado.cumple_paris,
-        "detalles": resultado.detalles,
-        "recomendaciones": huella.recomendaciones(respuestas, resultado),
-        "referencias": {
-            "promedio_colombia_t": huella.PROMEDIO_COLOMBIA_T,
-            "promedio_mundial_t": huella.PROMEDIO_MUNDIAL_T,
-            "objetivo_paris_2030_t": huella.OBJETIVO_PARIS_2030_T,
-        },
-    }
-
-
-# ── Módulo B: quiz ───────────────────────────────────────────────────────────
-
-class IntentoQuiz(BaseModel):
-    # {id_pregunta: indice_elegido}. Las claves llegan como texto en JSON.
-    respuestas: dict[str, int]
-
-
-@app.get("/api/quiz/preguntas")
-def quiz_preguntas():
-    """Preguntas sin las respuestas correctas."""
-    return quiz.preguntas_publicas()
-
-
-@app.post("/api/quiz/calificar")
-def quiz_calificar(intento: IntentoQuiz):
-    """Califica el intento y devuelve el solucionario con las explicaciones."""
-    try:
-        respuestas = {int(k): v for k, v in intento.respuestas.items()}
-    except (TypeError, ValueError) as exc:
-        raise HTTPException(
-            status_code=400, detail="Las claves deben ser ids numéricos de pregunta",
-        ) from exc
-
-    resultado = quiz.calificar(respuestas)
-    return {
-        "puntaje": resultado.puntaje,
-        "total": resultado.total,
-        "porcentaje": resultado.porcentaje,
-        "nivel": resultado.nivel,
-        "mensaje": resultado.mensaje,
-        "correctas": resultado.correctas,
-        "incorrectas": resultado.incorrectas,
-        "solucionario": quiz.solucionario(),
-        "compartir": quiz.texto_para_compartir(resultado),
     }
 
 

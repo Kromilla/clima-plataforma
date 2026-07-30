@@ -260,55 +260,6 @@ def test_dias_de_incendios_acotado(dias):
     assert _cliente().get(f"/api/incendios?dias={dias}").status_code == 422
 
 
-# ── Bug: inf y NaN reventaban el cálculo de huella ───────────────────────────
-
-@pytest.mark.parametrize("valor", [float("inf"), float("-inf"), float("nan")])
-def test_huella_rechaza_valores_no_finitos(valor):
-    """
-    `inf > 0` pasa cualquier comparación de signo y toda comparación con NaN es
-    falsa, así que ambos se colaban hasta el cálculo y reventaban al serializar
-    la respuesta.
-    """
-    import huella
-
-    with pytest.raises(ValueError, match="finito"):
-        huella.calcular(huella.Respuestas(km_semana=valor))
-
-
-@pytest.mark.parametrize("cuerpo", [
-    '{"km_semana": Infinity}',
-    '{"km_semana": NaN}',
-    '{"km_semana": 1e400}',   # JSON válido que Python convierte a inf
-])
-def test_la_api_de_huella_rechaza_no_finitos(cuerpo):
-    resp = _cliente().post(
-        "/api/huella/calcular", content=cuerpo,
-        headers={"Content-Type": "application/json"},
-    )
-    assert resp.status_code == 400
-    assert "finito" in resp.json()["detail"]
-
-
-def test_huella_rechaza_valores_absurdos():
-    """Sin tope superior, 1e12 km/semana daba 8.800 millones de toneladas."""
-    import huella
-
-    with pytest.raises(ValueError, match="demasiado alto"):
-        huella.calcular(huella.Respuestas(km_semana=10**12))
-
-
-def test_huella_acepta_un_caso_extremo_pero_real():
-    """Los topes no deben estorbar a un usuario real con consumo alto."""
-    import huella
-
-    res = huella.calcular(huella.Respuestas(
-        transporte="auto_gasolina", km_semana=1500, horas_vuelo_anio=200,
-        kwh_mes=2000, personas_hogar=1, dieta="carne_alta",
-        residuos_kg_semana=50,
-    ))
-    assert res.total_t > 0
-
-
 # ── Bug: se exigía OPENAQ_API_KEY para arrancar ──────────────────────────────
 
 def test_openaq_es_opcional():

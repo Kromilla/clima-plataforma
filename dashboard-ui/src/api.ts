@@ -100,19 +100,6 @@ export function fetchIncendios(lugarId: string, dias = 2) {
   );
 }
 
-async function postJSON<T>(url: string, body: unknown): Promise<T> {
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data?.detail ?? `${url} respondió ${res.status}`);
-  }
-  return data as T;
-}
-
 // ── Predictor de riesgo (Fase 4) ─────────────────────────────────────────────
 
 export interface Riesgo {
@@ -140,76 +127,6 @@ export interface Riesgo {
 
 export function fetchRiesgo(lugarId: string) {
   return getJSON<Riesgo>(`/api/riesgo?lugar_id=${encodeURIComponent(lugarId)}`);
-}
-
-// ── Huella de carbono (Módulo A) ─────────────────────────────────────────────
-
-export interface RespuestasHuella {
-  transporte: string;
-  km_semana: number;
-  pasajeros_auto: number;
-  horas_vuelo_anio: number;
-  kwh_mes: number;
-  personas_hogar: number;
-  gas_m3_mes: number;
-  glp_kg_mes: number;
-  usa_factor_colombia: boolean;
-  dieta: string;
-  residuos_kg_semana: number;
-  recicla: boolean;
-}
-
-export interface ResultadoHuella {
-  total_t: number;
-  desglose: Record<string, number>;
-  vs_colombia: number;
-  vs_mundial: number;
-  cumple_paris: boolean;
-  detalles: string[];
-  recomendaciones: string[];
-  referencias: {
-    promedio_colombia_t: number;
-    promedio_mundial_t: number;
-    objetivo_paris_2030_t: number;
-  };
-}
-
-export function calcularHuella(datos: RespuestasHuella) {
-  return postJSON<ResultadoHuella>('/api/huella/calcular', datos);
-}
-
-// ── Quiz (Módulo B) ──────────────────────────────────────────────────────────
-
-export interface PreguntaQuiz {
-  id: number;
-  texto: string;
-  opciones: string[];
-  categoria: string;
-}
-
-export interface ResultadoQuiz {
-  puntaje: number;
-  total: number;
-  porcentaje: number;
-  nivel: string;
-  mensaje: string;
-  correctas: number[];
-  incorrectas: number[];
-  solucionario: {
-    id: number;
-    correcta: number;
-    explicacion: string;
-    fuente: string;
-  }[];
-  compartir: string;
-}
-
-export function fetchPreguntas() {
-  return getJSON<PreguntaQuiz[]>('/api/quiz/preguntas');
-}
-
-export function calificarQuiz(respuestas: Record<number, number>) {
-  return postJSON<ResultadoQuiz>('/api/quiz/calificar', { respuestas });
 }
 
 /** Ids de fuente registrados en el backend (sources/registry.py). */

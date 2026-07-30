@@ -13,9 +13,10 @@ Monitor de calidad del aire, clima, energía e incendios para **Santa Marta, Col
 | **Fase 1** — Fundaciones + bot de alertas | ✅ |
 | **Fase 2** — Dashboard + historial | ✅ |
 | **Fase 3** — Monitor de incendios | ✅ |
-| **Módulo A** — Calculadora de huella | ✅ |
-| **Módulo B** — Quiz educativo | ✅ |
 | **Fase 4** — Predictor de riesgo | ✅ *(estimación experimental)* |
+
+> Los módulos de huella de carbono y quiz educativo se retiraron del producto.
+> Su código sigue en el historial de git si se quieren recuperar.
 
 ---
 
@@ -137,8 +138,6 @@ del informe (§7).
 | `collector.py` | Consulta todas las fuentes en bucle y persiste |
 | `backfill.py` | Trae histórico real para el predictor |
 | `alerts.py` | Umbral de PM2.5 y alerta por foco cercano |
-| `huella.py` | Calculadora de huella (Módulo A) |
-| `quiz.py` | Quiz educativo (Módulo B) |
 | `risk.py` | Predictor de riesgo de calor (Fase 4) |
 | `bot.py` | Bot de Telegram |
 | `api.py` | API REST |
