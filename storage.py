@@ -25,7 +25,6 @@ from __future__ import annotations
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Generator
 
 from sources.base import Lectura

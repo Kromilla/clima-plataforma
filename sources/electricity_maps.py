@@ -46,7 +46,7 @@ def obtener_ultimo(lugar: dict) -> Lectura:
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
         data = response.json()
-        
+
         intensidad = data.get("carbonIntensity")
         if intensidad is None:
             raise ElectricityMapsError("No se recibió carbonIntensity")

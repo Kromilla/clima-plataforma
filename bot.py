@@ -23,7 +23,6 @@ from __future__ import annotations
 import logging
 import time
 
-import telegram
 from telegram import Update
 from telegram.constants import ParseMode
 from telegram.error import NetworkError

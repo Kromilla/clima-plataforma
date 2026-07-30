@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -216,7 +216,6 @@ def test_storage_guardar_y_recuperar(tmp_path):
 
 def test_config_falla_sin_variables(monkeypatch):
     """Si faltan variables obligatorias, _validar() llama sys.exit(1)."""
-    import sys
     import types
 
     # Limpiar variables del entorno

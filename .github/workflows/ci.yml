@@ -20,7 +20,10 @@ jobs:
           cache: pip
 
       - name: Instalar dependencias
-        run: pip install -r requirements.txt
+        run: pip install -r requirements.txt ruff
+
+      - name: Lint (ruff)
+        run: ruff check . --select E,F,W --ignore E501
 
       - name: Correr tests
         # Los tests no usan red (fixtures grabados); PYTHONUTF8 evita que la
@@ -30,7 +33,7 @@ jobs:
         run: python -m pytest tests/ -q
 
   frontend:
-    name: Build (React)
+    name: Build + Lint (React)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -47,6 +50,9 @@ jobs:
 
       - name: Instalar dependencias
         run: npm ci
+
+      - name: Lint (oxlint)
+        run: npm run lint
 
       - name: Compilar
         run: npm run build

@@ -24,7 +24,7 @@ import csv
 import io
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from math import asin, cos, radians, sin, sqrt
 
 import requests

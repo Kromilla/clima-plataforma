@@ -125,11 +125,12 @@ The backend exposes a REST API at `http://localhost:8000`.
 
 | Endpoint | Description |
 |---|---|
-| `GET /estado` | Latest reading from all sources |
-| `GET /historico/{source}` | Hourly time series for a source |
-| `GET /riesgo` | Heat risk prediction |
-| `GET /incendios` | Active heat spots |
-| `GET /lugares` | Configured locations |
+| `GET /api/clima/actual` | Latest reading from every source |
+| `GET /api/clima/historial?fuente=X` | Hourly time series for a source |
+| `GET /api/estado/fuentes` | Health status (semaphore) per source |
+| `GET /api/riesgo` | Heat risk prediction |
+| `GET /api/incendios` | Active heat spots |
+| `GET /api/lugares` | Configured locations |
 
 **Interactive docs (Swagger UI):** `http://localhost:8000/docs`
 
@@ -338,11 +339,12 @@ El backend expone una API REST en `http://localhost:8000`.
 
 | Endpoint | Descripción |
 |---|---|
-| `GET /estado` | Última lectura de todas las fuentes |
-| `GET /historico/{fuente}` | Serie horaria de una fuente |
-| `GET /riesgo` | Predicción de riesgo de calor |
-| `GET /incendios` | Focos de calor activos |
-| `GET /lugares` | Lugares configurados |
+| `GET /api/clima/actual` | Última lectura de cada fuente |
+| `GET /api/clima/historial?fuente=X` | Serie horaria de una fuente |
+| `GET /api/estado/fuentes` | Estado de salud (semáforo) por fuente |
+| `GET /api/riesgo` | Predicción de riesgo de calor |
+| `GET /api/incendios` | Focos de calor activos |
+| `GET /api/lugares` | Lugares configurados |
 
 **Documentación interactiva (Swagger UI):** `http://localhost:8000/docs`
 
