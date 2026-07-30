@@ -1,5 +1,8 @@
 # Plataforma de Clima y Sostenibilidad 🌤️
 
+[![CI](https://github.com/Kromilla/clima-plataforma/actions/workflows/ci.yml/badge.svg)](https://github.com/Kromilla/clima-plataforma/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-0d9488.svg)](LICENSE)
+
 Monitor de calidad del aire, clima, energía e incendios para **Santa Marta, Colombia**.
 
 > Proyecto personal de Carlos · Bot de Telegram · Dashboard React

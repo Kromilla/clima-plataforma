@@ -46,10 +46,15 @@ def test_los_scripts_no_revientan_con_caracteres_no_ascii():
     )
     # Sin text=True: el hijo emite UTF-8 y decodificarlo como cp1252 fallaría en
     # el propio test. Se leen bytes y se decodifican explícitamente.
+    # El subproceso no hereda el entorno; sin las variables que config exige haría
+    # sys.exit(1) al importarse. Se le pasan valores dummy (como en un CI sin .env).
     proc = subprocess.run(
         [sys.executable, "-c", codigo],
         capture_output=True, cwd=RAIZ,
-        env={"PYTHONIOENCODING": "cp1252", "PATH": "", "SYSTEMROOT": ""},
+        env={
+            "PYTHONIOENCODING": "cp1252", "PATH": "", "SYSTEMROOT": "",
+            "TELEGRAM_BOT_TOKEN": "test-token", "TELEGRAM_CHAT_ID": "0",
+        },
     )
     stderr = proc.stderr.decode("utf-8", errors="replace")
     assert proc.returncode == 0, f"el script murió: {stderr[-400:]}"
