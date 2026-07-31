@@ -1,99 +1,87 @@
-# Despliegue en Oracle Cloud (Always Free)
+# Despliegue gratis (Vercel + Render + Supabase)
 
-Guía para poner ClimaBot 24/7 en una VM gratuita de Oracle. Corre todo en una
-sola máquina (API + collector + bot + SQLite), sin dormir y sin costo.
+Pone ClimaBot en línea sin tarjeta de crédito. Tres piezas:
 
-La parte de crear la cuenta y la VM la haces tú (Oracle pide verificación con
-tarjeta). El resto es un script.
+| Pieza | Dónde | Qué corre |
+|---|---|---|
+| Base de datos | **Supabase** | Postgres (historial + config) |
+| API + collector | **Render** | FastAPI (web) + collector (cron cada 15 min) |
+| Dashboard | **Vercel** | React estático |
 
----
-
-## 1. Crear la cuenta y la VM (tu parte)
-
-1. **Cuenta:** regístrate en <https://www.oracle.com/cloud/free/>. Pide una
-   tarjeta para verificar identidad — **no cobra** en el tier Always Free.
-
-2. **Crear instancia** (Compute → Instances → Create):
-   - **Image:** Canonical **Ubuntu 24.04** (trae Python 3.12; el proyecto necesita 3.11+).
-   - **Shape:** `VM.Standard.A1.Flex` (ARM Ampere) — el Always Free da hasta 4
-     OCPU y 24 GB gratis. Con 1 OCPU / 6 GB sobra.
-     *Si en tu región no hay capacidad ARM, usa `VM.Standard.E2.1.Micro` (AMD, también Always Free).*
-   - **SSH keys:** sube tu clave pública (o deja que Oracle genere una y guarda la privada).
-
-3. **Abrir el puerto 80** (el paso que más se olvida):
-   Networking → VCN → Security List → **Add Ingress Rule**:
-   - Source CIDR: `0.0.0.0/0`
-   - IP Protocol: TCP · Destination Port: `80` (y `443` si luego quieres HTTPS)
-
-4. Anota la **IP pública** de la instancia.
+> El bot de Telegram no se despliega aquí (los workers 24/7 de Render son de pago).
+> Corre local, o migra a webhooks más adelante. La alternativa "todo en una VM
+> 24/7" está en [`DEPLOY_oracle.md`](DEPLOY_oracle.md).
 
 ---
 
-## 2. Instalar la app (una línea)
+## 1. Supabase (base de datos) ✅
 
-Conéctate por SSH y corre:
+Ya creado. Solo necesitas la cadena de conexión:
 
-```bash
-ssh ubuntu@TU_IP_PUBLICA
+- Supabase → **Connect** → **Session pooler** → copia la URI.
+- Reemplaza `[YOUR-PASSWORD]` por la contraseña de la BD (sin corchetes).
+- Esa es tu `DATABASE_URL`. Úsala tal cual en Render (paso 2).
 
-git clone https://github.com/Kromilla/clima-plataforma.git
-cd clima-plataforma
+---
 
-# Crea el .env con tu token de Telegram (ver .env.example)
-nano .env
-#   TELEGRAM_BOT_TOKEN=...   (de @BotFather)
-#   TELEGRAM_CHAT_ID=...     (o córrelo luego: .venv/bin/python scripts/telegram_chat_id.py)
-#   FIRMS_MAP_KEY=...         (opcional, activa el mapa de incendios)
+## 2. Render (API + collector)
 
-bash deploy/setup.sh
+1. Entra a <https://render.com> y regístrate **con GitHub** (sin tarjeta).
+2. **New +** → **Blueprint**.
+3. Conecta el repositorio `clima-plataforma`. Render detecta `render.yaml` y
+   propone dos servicios: `climabot-api` (web) y `climabot-collector` (cron).
+4. Render pedirá las variables marcadas como secretas. Ponlas en **ambos**
+   servicios:
+   | Variable | Valor |
+   |---|---|
+   | `DATABASE_URL` | la URI del Session pooler de Supabase |
+   | `TELEGRAM_BOT_TOKEN` | tu token de @BotFather |
+   | `TELEGRAM_CHAT_ID` | tu chat id |
+   | `FIRMS_MAP_KEY` | *(opcional)* clave de NASA FIRMS |
+5. **Apply** → Render construye y despliega.
+6. Cuando termine, copia la URL de la API: algo como
+   `https://climabot-api.onrender.com`.
+   Pruébala: abre `https://climabot-api.onrender.com/api/lugares` → debe devolver JSON.
+
+> **Nota:** el plan free de la API se **duerme** tras 15 min sin tráfico; la
+> primera visita luego de dormir tarda ~30-50 s en despertar. Es normal.
+
+---
+
+## 3. Vercel (dashboard)
+
+1. Entra a <https://vercel.com> y regístrate **con GitHub** (sin tarjeta).
+2. **Add New → Project** → importa `clima-plataforma`.
+3. Configura:
+   - **Root Directory:** `dashboard-ui`
+   - Framework: **Vite** (se detecta solo)
+4. En **Environment Variables** agrega:
+   | Variable | Valor |
+   |---|---|
+   | `VITE_API_URL` | la URL de Render, ej. `https://climabot-api.onrender.com` |
+5. **Deploy**. Vercel te da la URL pública del dashboard 🎉
+
+---
+
+## 4. Ajustes opcionales
+
+- **Restringir CORS** al dominio de Vercel: en Render, variable
+  `CORS_ORIGINS=https://tu-app.vercel.app`.
+- **Poblar el historial** para que las gráficas salgan llenas desde el inicio
+  (en local, con `DATABASE_URL` de Supabase en tu `.env`):
+  ```bash
+  python backfill.py --dias 730
+  ```
+  Escribe ~2 años de clima directo en Supabase.
+
+---
+
+## Cómo encaja
+
+```
+Navegador → Vercel (dashboard)  --VITE_API_URL-->  Render (API)  -->  Supabase (Postgres)
+                                                    Render (cron collector) --> Supabase
 ```
 
-El script instala Python, Node y nginx; compila el dashboard; deja corriendo los
-tres servicios con systemd; y configura nginx. Al terminar imprime la URL.
-
-Opcional — historial para el predictor (necesita el `.env` ya creado):
-
-```bash
-.venv/bin/python backfill.py --dias 730
-```
-
-Abre **http://TU_IP_PUBLICA** 🎉
-
----
-
-## 3. Operación
-
-```bash
-# Ver estado / logs
-sudo systemctl status climabot-api climabot-collector climabot-bot
-journalctl -u climabot-bot -f          # logs del bot en vivo
-
-# Actualizar a la última versión del repo
-bash deploy/update.sh
-```
-
----
-
-## 4. HTTPS con dominio propio (opcional)
-
-Si apuntas un dominio a la IP:
-
-```bash
-sudo apt install -y certbot python3-certbot-nginx
-sudo certbot --nginx -d tudominio.com
-```
-
-Certbot edita nginx y renueva el certificado solo.
-
----
-
-## Notas
-
-- **CORS:** no hace falta configurarlo — nginx sirve el frontend y el `/api` en el
-  mismo origen.
-- **Base de datos:** SQLite en `clima.db`, en el disco de la VM (persistente). No
-  hay que migrar a Postgres como sí haría falta en un PaaS efímero.
-- **"No carga la página":** casi siempre es el puerto 80 sin abrir en la Security
-  List de Oracle (paso 1.3). El firewall del sistema ya lo abre `setup.sh`.
-- **Bot y Telegram:** correrlo en la nube evita los cortes intermitentes de
-  Telegram que se veían desde una conexión doméstica.
+El código lee `DATABASE_URL` / `VITE_API_URL` del entorno; los secretos viven en
+los paneles de Render y Vercel (cifrados), nunca en git.

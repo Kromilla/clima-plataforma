@@ -6,6 +6,7 @@ una fuente nueva no requiere tocar este archivo (principio §5.1 del informe).
 """
 from __future__ import annotations
 
+import os
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, HTTPException, Query
@@ -21,11 +22,16 @@ from sources.registry import FUENTES, por_id
 
 app = FastAPI(title="ClimaBot API")
 
-# Habilitar CORS para desarrollo con Vite (React)
+# CORS. En producción el dashboard (Vercel) y la API (Render) están en dominios
+# distintos, así que el navegador exige CORS. Se permite todo por defecto; para
+# restringir al dominio real, define CORS_ORIGINS="https://tu-app.vercel.app".
+# allow_credentials=False a propósito: la app no usa cookies, y con credenciales
+# el comodín "*" sería rechazado por el navegador.
+_origenes = os.environ.get("CORS_ORIGINS", "*").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # En produccion restringir a los dominios correctos
-    allow_credentials=True,
+    allow_origins=[o.strip() for o in _origenes],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

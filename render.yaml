@@ -1,0 +1,51 @@
+# render.yaml — Blueprint de Render para la opción A (PaaS).
+#
+# Define dos servicios gratis:
+#   - web:  la API (FastAPI/uvicorn)
+#   - cron: el collector, que corre cada 15 min (en vez del bucle infinito)
+#
+# El bot NO se despliega aquí: los workers 24/7 de Render son de pago. Corre
+# local, o migra el bot a webhooks más adelante.
+#
+# Las variables marcadas `sync: false` se ingresan en el panel de Render (no van
+# al repo): DATABASE_URL, TELEGRAM_* y las claves opcionales.
+
+services:
+  # ── API ────────────────────────────────────────────────────────────────────
+  - type: web
+    name: climabot-api
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn api:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/lugares
+    envVars:
+      - key: DATABASE_URL          # Supabase (Session pooler)
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN    # config.py lo exige al importar
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: FIRMS_MAP_KEY         # opcional (mapa de incendios)
+        sync: false
+      - key: CORS_ORIGINS          # opcional: restringir al dominio de Vercel
+        sync: false
+
+jobs:
+  # ── Collector (cron cada 15 min) ────────────────────────────────────────────
+  - type: cron
+    name: climabot-collector
+    runtime: python
+    plan: free
+    schedule: "*/15 * * * *"
+    buildCommand: pip install -r requirements.txt
+    startCommand: python collector.py --una-vez
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: FIRMS_MAP_KEY
+        sync: false

@@ -40,8 +40,13 @@ export interface Lugar {
 /** Lecturas actuales, indexadas por id de fuente (ej. "openmeteo-aire"). */
 export type LecturasActuales = Record<string, Lectura | null>;
 
+// URL base de la API. Vacía en desarrollo → rutas relativas /api/... que el proxy
+// de Vite reenvía al backend local. En Vercel se define VITE_API_URL con la URL
+// del backend en Render.
+const BASE = import.meta.env.VITE_API_URL ?? '';
+
 async function getJSON<T>(url: string): Promise<T> {
-  const res = await fetch(url);
+  const res = await fetch(BASE + url);
   if (!res.ok) {
     throw new Error(`${url} respondió ${res.status}`);
   }

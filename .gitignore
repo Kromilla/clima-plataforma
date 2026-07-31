@@ -17,6 +17,8 @@ venv/
 .vscode/
 # skills de agentes (Supabase, etc.) — genéricos, se reinstalan con npx
 .agents/
+.claude/skills/
+skills-lock.json
 
 # Frontend
 node_modules/

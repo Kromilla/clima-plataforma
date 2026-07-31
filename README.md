@@ -119,15 +119,13 @@ npm run dev --prefix dashboard-ui
 
 ### Deployment
 
-Runs 24/7 on a single free Oracle Cloud VM (API + collector + bot + SQLite, via
-`systemd` + nginx). Full step-by-step guide and scripts in
-**[`deploy/DEPLOY.md`](deploy/DEPLOY.md)** — deploying is essentially one command:
+Free, no credit card: **Vercel** (dashboard) + **Render** (API + collector cron)
++ **Supabase** (Postgres). `storage.py` switches from SQLite to Postgres via a
+single env var (`DATABASE_URL`) — thanks to the single-data-gateway design.
+Step-by-step in **[`deploy/DEPLOY.md`](deploy/DEPLOY.md)**.
 
-```bash
-git clone https://github.com/Kromilla/clima-plataforma.git && cd clima-plataforma
-nano .env            # Telegram token
-bash deploy/setup.sh
-```
+Prefer a single always-on VM (also runs the bot 24/7)? See the Oracle Cloud Free
+alternative in [`deploy/DEPLOY_oracle.md`](deploy/DEPLOY_oracle.md).
 
 ---
 
