@@ -26,7 +26,7 @@ def cargar_dotenv(path: Path | None = None) -> None:
     """
     Carga un archivo .env manualmente (sin dependencia extra).
 
-    Público para que scripts sueltos (dia1_*.py) puedan leer las claves del .env
+    Público para que los scripts de scripts/ puedan leer las claves del .env
     sin hardcodearlas ni disparar la validación completa de _Config.
     """
     path = path or (Path(__file__).parent / ".env")

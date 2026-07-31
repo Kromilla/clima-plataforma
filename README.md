@@ -89,7 +89,7 @@ pip install -r requirements.txt
 
 # 2. Environment variables (only Telegram is required)
 cp .env.example .env            # paste your @BotFather token
-python dia1_chatid.py           # gets your TELEGRAM_CHAT_ID
+python scripts/telegram_chat_id.py           # gets your TELEGRAM_CHAT_ID
 
 # 3. Historical data for the predictor
 python backfill.py --dias 730
@@ -315,7 +315,7 @@ pip install -r requirements.txt
 
 # 2. Variables de entorno (solo Telegram es obligatorio)
 cp .env.example .env            # pega tu token de @BotFather
-python dia1_chatid.py           # obtiene tu TELEGRAM_CHAT_ID
+python scripts/telegram_chat_id.py           # obtiene tu TELEGRAM_CHAT_ID
 
 # 3. Historial para el predictor
 python backfill.py --dias 730

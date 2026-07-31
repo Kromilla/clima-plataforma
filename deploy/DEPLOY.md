@@ -42,7 +42,7 @@ cd clima-plataforma
 # Crea el .env con tu token de Telegram (ver .env.example)
 nano .env
 #   TELEGRAM_BOT_TOKEN=...   (de @BotFather)
-#   TELEGRAM_CHAT_ID=...     (o córrelo luego: .venv/bin/python dia1_chatid.py)
+#   TELEGRAM_CHAT_ID=...     (o córrelo luego: .venv/bin/python scripts/telegram_chat_id.py)
 #   FIRMS_MAP_KEY=...         (opcional, activa el mapa de incendios)
 
 bash deploy/setup.sh
