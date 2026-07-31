@@ -22,11 +22,9 @@ from sources.registry import FUENTES, por_id
 
 app = FastAPI(title="ClimaBot API")
 
-# CORS. En producción el dashboard (Vercel) y la API (Render) están en dominios
-# distintos, así que el navegador exige CORS. Se permite todo por defecto; para
-# restringir al dominio real, define CORS_ORIGINS="https://tu-app.vercel.app".
-# allow_credentials=False a propósito: la app no usa cookies, y con credenciales
-# el comodín "*" sería rechazado por el navegador.
+# Dashboard (Vercel) y API (Render) viven en dominios distintos → hace falta CORS.
+# credentials=False porque la app no usa cookies (y con credenciales el "*" sería
+# inválido). Restringir con CORS_ORIGINS="https://tu-app.vercel.app".
 _origenes = os.environ.get("CORS_ORIGINS", "*").split(",")
 app.add_middleware(
     CORSMiddleware,

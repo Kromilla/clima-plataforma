@@ -1,22 +1,8 @@
 """
-bot.py — Bot de Telegram para alertas de calidad del aire — Santa Marta.
+bot.py — Bot de Telegram para alertas de calidad del aire de Santa Marta.
 
-Fuentes de datos (ver sources/registry.py):
-  Aire   : Open-Meteo Air Quality (modelo CAMS, cobertura global, sin API key)
-  Clima  : Open-Meteo Forecast
-  Energía: XM (operador oficial del mercado eléctrico colombiano, sin API key)
-
-OpenAQ quedó como fuente secundaria: la validación del Día 1 (§8 del informe)
-confirmó que no tiene ninguna estación en Santa Marta ni en Barranquilla — de
-hecho no tiene ninguna en toda la costa Caribe.
-
-Comandos:
-    /start    — Bienvenida
-    /estado   — Situación actual (aire, clima, energía)
-    /umbral N — Cambiar umbral de alerta (ej. /umbral 35)
-    /ayuda    — Lista de comandos
-
-Regla: NUNCA deja una excepción sin capturar.
+Comandos: /start, /estado, /umbral N, /ayuda.
+Regla: nunca deja una excepción sin capturar.
 """
 from __future__ import annotations
 
@@ -39,10 +25,7 @@ from sources.openmeteo_aire import OpenMeteoAireSinDatos
 from sources.openmeteo_aire import obtener_ultimo as openmeteo_obtener
 from sources.registry import por_id
 
-# ── Logging ───────────────────────────────────────────────────────────────────
-# Centralizado en logging_setup: fuerza UTF-8 en consola (Windows usa cp1252 y
-# reventaba con los µg/m³ y emojis) y silencia el logger de httpx, que escribía
-# el token de Telegram en texto plano.
+# logging_setup fuerza UTF-8 en consola y silencia httpx (que logueaba el token).
 logging_setup.configurar(cfg.LOG_FILE)
 
 logger = logging.getLogger(__name__)
@@ -209,12 +192,8 @@ async def cmd_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def revisar_y_alertar(context: ContextTypes.DEFAULT_TYPE) -> None:
     """
-    Job del JobQueue de PTB: revisa el aire y envía alerta si supera el umbral.
-
-    Corre en el mismo event loop que el bot. La versión anterior usaba un hilo
-    aparte con `asyncio.run()`, lo que crea un event loop nuevo en cada vuelta
-    mientras el cliente HTTP del bot está atado al loop principal — una fuente
-    silenciosa de fallos.
+    Job del JobQueue de PTB: revisa el aire y alerta si supera el umbral.
+    Corre en el event loop del bot (no en un hilo con asyncio.run aparte).
     """
     chat_id = cfg.TELEGRAM_CHAT_ID
     try:
@@ -278,24 +257,16 @@ def main() -> None:
         logger.info("Chequeo de alertas cada %ds", cfg.POLLING_INTERVALO_SEG)
 
     logger.info("Bot escuchando comandos…")
-    # bootstrap_retries=-1 → reintentos infinitos al conectar.
-    # Con el valor por defecto (0), PTB abortaba con "Failed run number 0 of 0"
-    # ante un solo timeout de red al arrancar y el bot moría para siempre. Para
-    # un proceso que debe correr desatendido enviando alertas, un hipo de red no
-    # puede ser fatal.
+    # bootstrap_retries=-1: reintenta la conexión inicial indefinidamente. Con el
+    # default (0), un solo timeout de red al arrancar mataba el bot.
     app.run_polling(drop_pending_updates=True, bootstrap_retries=-1)
 
 
 def main_supervisado(max_reinicios: int = 0) -> None:
     """
-    Ejecuta el bot reiniciándolo si muere por un fallo de red.
-
-    Es la última red de seguridad: `bootstrap_retries` cubre la conexión inicial
-    y PTB reintenta durante el polling, pero si aun así la excepción escapa,
-    preferimos reiniciar antes que dejar de enviar alertas en silencio.
-
-    Args:
-        max_reinicios: 0 = sin límite.
+    Ejecuta el bot y lo reinicia (con espera creciente) si cae por red.
+    Última red de seguridad además de los reintentos internos de PTB.
+    max_reinicios=0 → sin límite.
     """
     intentos = 0
     while True:

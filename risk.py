@@ -415,10 +415,8 @@ def entrenar(
     return modelo, dias
 
 
-# Modelo cacheado por lugar: {lugar_id: (modelo, dias, momento_entrenamiento)}.
-# Entrenar carga ~35.000 filas y tarda 1-2 s; hacerlo en cada request hacía que
-# la pestaña de riesgo fuera lenta y machacara la BD sin necesidad. Los datos
-# horarios no cambian tan rápido como para justificar reentrenar por visita.
+# Modelo cacheado por lugar: entrenar carga ~35.000 filas (1-2 s), y los datos
+# horarios no cambian lo bastante rápido como para reentrenar en cada request.
 _CACHE: dict[str, tuple[Modelo, list[DiaResumen], datetime]] = {}
 TTL_MODELO_SEG = 3600
 

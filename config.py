@@ -15,10 +15,8 @@ from pathlib import Path
 
 from logging_setup import forzar_utf8_consola
 
-# Efecto de import deliberado: la consola de Windows usa cp1252 y no puede
-# imprimir los µg/m³, gCO₂eq ni emojis que este proyecto usa por todas partes.
-# Como todo módulo importa `config`, ponerlo aquí cubre también los scripts
-# sueltos sin que tengan que acordarse de configurarlo.
+# La consola de Windows (cp1252) revienta con µg/m³, gCO₂eq y emojis. Como todo
+# módulo importa config, forzarlo aquí cubre también los scripts sueltos.
 forzar_utf8_consola()
 
 
@@ -60,31 +58,19 @@ class _Config:
     """Contenedor de configuración con acceso por atributo."""
 
     def __init__(self) -> None:
-        # Busca .env en el directorio del proyecto (un nivel arriba de este archivo)
         cargar_dotenv(Path(__file__).parent / ".env")
 
-        # ── Obligatorias ───────────────────────────────────────────────────
-        # Solo las de Telegram. OpenAQ dejó de ser obligatoria: la validación
-        # del Día 1 confirmó que no tiene estaciones en la costa Caribe, así que
-        # las fuentes reales (Open-Meteo, XM) no piden ninguna clave. Exigirla
-        # obligaba a registrarse en un servicio que el proyecto ni usa.
+        # Solo Telegram es obligatorio. Las fuentes reales (Open-Meteo, XM) no
+        # piden clave; OpenAQ/FIRMS son opcionales y se desactivan solas sin ella.
         _validar(["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"])
 
         self.TELEGRAM_BOT_TOKEN: str = os.environ["TELEGRAM_BOT_TOKEN"]
         self.TELEGRAM_CHAT_ID: str = os.environ["TELEGRAM_CHAT_ID"]
 
-        # ── Opcionales ─────────────────────────────────────────────────────
-        # OpenAQ es fuente secundaria; sin clave simplemente no se consulta.
         self.OPENAQ_API_KEY: str | None = os.environ.get("OPENAQ_API_KEY")
-
-        # Electricity Maps (opcional — reemplazado por XM, que no pide clave)
         self.ELECTRICITY_MAPS_KEY: str | None = os.environ.get("ELECTRICITY_MAPS_KEY")
-
-        # NASA FIRMS (opcional — sin clave, la capa de incendios se desactiva sola)
-        # Gratis en https://firms.modaps.eosdis.nasa.gov/api/map_key/
         self.FIRMS_MAP_KEY: str | None = os.environ.get("FIRMS_MAP_KEY")
 
-        # ── Parámetros de comportamiento (con defaults razonables) ──────────
         self.UMBRAL_PM25_DEFAULT: float = float(
             os.environ.get("UMBRAL_PM25_DEFAULT", "50.0")
         )

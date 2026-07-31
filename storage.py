@@ -108,10 +108,8 @@ def inicializar_bd(db_path: str | None = None) -> None:
         for s in sentencias:
             con.execute(s)
 
-        # Una lectura queda identificada por (fuente, lugar, métrica, instante).
-        # Sin esto, el recolector inserta una fila nueva en cada pasada aunque la
-        # fuente siga publicando el mismo dato → filas duplicadas que aplanan las
-        # gráficas y ensuciarían el entrenamiento del modelo de la Fase 4.
+        # Índice único (fuente, lugar, métrica, ts): evita que el recolector
+        # duplique filas cuando la fuente aún no publica un dato nuevo.
         _deduplicar(con)
         con.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_lecturas_unica "
@@ -192,9 +190,8 @@ def _row_a_lectura(row: object) -> Lectura:
         unidad=row["unidad"],
         metrica=row["metrica"],
         fuente=row["fuente"],
-        # Se conserva la procedencia guardada, NO se fuerza a "cache": marcarlo
-        # aquí mostraba "🗄️ último dato conocido" para datos recién traídos. Quien
-        # la use como respaldo lo marca con `Lectura.como_cache()`.
+        # Se conserva la procedencia guardada (no se fuerza a "cache"): quien la
+        # sirva como respaldo la marca con Lectura.como_cache().
         procedencia=row["procedencia"],
         lugar_id=row["lugar_id"],
         estacion_nombre=row["estacion"] or "",
