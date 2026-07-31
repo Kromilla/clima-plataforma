@@ -5,12 +5,15 @@ Pone ClimaBot en línea sin tarjeta de crédito. Tres piezas:
 | Pieza | Dónde | Qué corre |
 |---|---|---|
 | Base de datos | **Supabase** | Postgres (historial + config) |
-| API + collector | **Render** | FastAPI (web) + collector (cron cada 15 min) |
+| API | **Render** | FastAPI (web service) |
+| Collector | **GitHub Actions** | recolecta cada 20 min y escribe a Supabase |
 | Dashboard | **Vercel** | React estático |
 
-> El bot de Telegram no se despliega aquí (los workers 24/7 de Render son de pago).
-> Corre local, o migra a webhooks más adelante. La alternativa "todo en una VM
-> 24/7" está en [`DEPLOY_oracle.md`](DEPLOY_oracle.md).
+> El collector NO va en Render: sus cron jobs son de pago. Se corre como workflow
+> programado de GitHub Actions, que es gratis.
+> El bot de Telegram tampoco se despliega aquí (los workers 24/7 de Render son de
+> pago); corre local. La alternativa "todo en una VM 24/7" (incluido el bot) está
+> en [`DEPLOY_oracle.md`](DEPLOY_oracle.md).
 
 ---
 
@@ -24,17 +27,16 @@ Ya creado. Solo necesitas la cadena de conexión:
 
 ---
 
-## 2. Render (API + collector)
+## 2. Render (API)
 
 1. Entra a <https://render.com> y regístrate **con GitHub** (sin tarjeta).
 2. **New +** → **Blueprint**.
 3. Conecta el repositorio `clima-plataforma`. Render detecta `render.yaml` y
-   propone dos servicios: `climabot-api` (web) y `climabot-collector` (cron).
-4. Render pedirá las variables marcadas como secretas. Ponlas en **ambos**
-   servicios:
+   propone un servicio: `climabot-api` (web).
+4. Render pedirá las variables marcadas como secretas:
    | Variable | Valor |
    |---|---|
-   | `DATABASE_URL` | la URI del Session pooler de Supabase |
+   | `DATABASE_URL` | la URI del Session pooler de Supabase (con tu password) |
    | `TELEGRAM_BOT_TOKEN` | tu token de @BotFather |
    | `TELEGRAM_CHAT_ID` | tu chat id |
    | `FIRMS_MAP_KEY` | *(opcional)* clave de NASA FIRMS |
@@ -43,12 +45,30 @@ Ya creado. Solo necesitas la cadena de conexión:
    `https://climabot-api.onrender.com`.
    Pruébala: abre `https://climabot-api.onrender.com/api/lugares` → debe devolver JSON.
 
-> **Nota:** el plan free de la API se **duerme** tras 15 min sin tráfico; la
-> primera visita luego de dormir tarda ~30-50 s en despertar. Es normal.
+> **Nota:** el plan free se **duerme** tras 15 min sin tráfico; la primera visita
+> luego de dormir tarda ~30-50 s en despertar. Es normal.
 
 ---
 
-## 3. Vercel (dashboard)
+## 3. Collector (GitHub Actions)
+
+El recolector corre como workflow programado (ya está en el repo:
+`.github/workflows/collector.yml`, cada 20 min). Solo hay que darle los secretos:
+
+1. En GitHub → repo `clima-plataforma` → **Settings** → **Secrets and variables**
+   → **Actions** → **New repository secret**. Agrega:
+   | Secret | Valor |
+   |---|---|
+   | `DATABASE_URL` | la misma URI de Supabase |
+   | `TELEGRAM_BOT_TOKEN` | tu token |
+   | `TELEGRAM_CHAT_ID` | tu chat id |
+   | `FIRMS_MAP_KEY` | *(opcional)* |
+2. Pestaña **Actions** → workflow **Collector** → **Run workflow** para probarlo
+   una vez. Debe terminar en verde y empezar a poblar Supabase.
+
+---
+
+## 4. Vercel (dashboard)
 
 1. Entra a <https://vercel.com> y regístrate **con GitHub** (sin tarjeta).
 2. **Add New → Project** → importa `clima-plataforma`.
@@ -63,7 +83,7 @@ Ya creado. Solo necesitas la cadena de conexión:
 
 ---
 
-## 4. Ajustes opcionales
+## 5. Ajustes opcionales
 
 - **Restringir CORS** al dominio de Vercel: en Render, variable
   `CORS_ORIGINS=https://tu-app.vercel.app`.
@@ -79,9 +99,9 @@ Ya creado. Solo necesitas la cadena de conexión:
 ## Cómo encaja
 
 ```
-Navegador → Vercel (dashboard)  --VITE_API_URL-->  Render (API)  -->  Supabase (Postgres)
-                                                    Render (cron collector) --> Supabase
+Navegador → Vercel (dashboard) --VITE_API_URL--> Render (API) --> Supabase (Postgres)
+GitHub Actions (collector, cada 20 min) ───────────────────────> Supabase
 ```
 
 El código lee `DATABASE_URL` / `VITE_API_URL` del entorno; los secretos viven en
-los paneles de Render y Vercel (cifrados), nunca en git.
+los paneles de Render, Vercel y GitHub (cifrados), nunca en git.

@@ -1,0 +1,44 @@
+name: Collector
+
+# Corre el recolector de forma programada y escribe en Supabase. Reemplaza al
+# proceso 24/7: los cron de Render son de pago, pero GitHub Actions es gratis.
+on:
+  schedule:
+    - cron: "*/20 * * * *"   # cada 20 min (los datos de las fuentes son horarios)
+  workflow_dispatch: {}       # permite correrlo a mano desde la pestaña Actions
+
+# Evita que dos ejecuciones se pisen si una tarda.
+concurrency:
+  group: collector
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Recolectar y persistir
+        env:
+          # Se definen como Secrets del repo (Settings → Secrets → Actions).
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          FIRMS_MAP_KEY: ${{ secrets.FIRMS_MAP_KEY }}
+          PYTHONUTF8: '1'
+        run: |
+          # Hasta que se configuren los Secrets, sale en verde sin hacer nada
+          # (evita fallos ruidosos programados antes de terminar el despliegue).
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::notice::Falta el secret DATABASE_URL. Configúralo en Settings → Secrets → Actions. Omitiendo."
+            exit 0
+          fi
+          python collector.py --una-vez
