@@ -11,10 +11,12 @@ venv/
 # Logs — httpx registra la URL completa de Telegram (incluye el token en texto plano)
 *.log
 
-# Herramientas de edición
+# Herramientas de edición y tooling de IA
 .antigravity/
 .idea/
 .vscode/
+# skills de agentes (Supabase, etc.) — genéricos, se reinstalan con npx
+.agents/
 
 # Frontend
 node_modules/
