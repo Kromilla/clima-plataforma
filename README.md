@@ -117,6 +117,18 @@ python api.py                          # Swagger UI → http://localhost:8000/do
 npm run dev --prefix dashboard-ui
 ```
 
+### Deployment
+
+Runs 24/7 on a single free Oracle Cloud VM (API + collector + bot + SQLite, via
+`systemd` + nginx). Full step-by-step guide and scripts in
+**[`deploy/DEPLOY.md`](deploy/DEPLOY.md)** — deploying is essentially one command:
+
+```bash
+git clone https://github.com/Kromilla/clima-plataforma.git && cd clima-plataforma
+nano .env            # Telegram token
+bash deploy/setup.sh
+```
+
 ---
 
 ### REST API

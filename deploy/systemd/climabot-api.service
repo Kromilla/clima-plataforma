@@ -1,0 +1,15 @@
+[Unit]
+Description=ClimaBot API (FastAPI/uvicorn)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/clima-plataforma
+# Escucha solo en localhost: nginx es quien expone el puerto 80 al mundo.
+ExecStart=/home/ubuntu/clima-plataforma/.venv/bin/python -m uvicorn api:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

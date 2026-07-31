@@ -1,0 +1,14 @@
+[Unit]
+Description=ClimaBot bot de Telegram
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/clima-plataforma
+ExecStart=/home/ubuntu/clima-plataforma/.venv/bin/python bot.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

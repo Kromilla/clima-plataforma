@@ -1,0 +1,14 @@
+[Unit]
+Description=ClimaBot collector (recolecta y persiste en bucle)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/clima-plataforma
+ExecStart=/home/ubuntu/clima-plataforma/.venv/bin/python collector.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
