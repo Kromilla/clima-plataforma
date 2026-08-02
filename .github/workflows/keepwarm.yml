@@ -1,0 +1,36 @@
+name: Keep-warm
+
+# Mantiene despierto el servicio de Render (plan free). Sin esto, se duerme tras
+# 15 min sin tráfico y la siguiente visita tarda 30-50 s en responder. Un ping
+# ligero cada 10 min lo mantiene activo las 24 h. El repo es público, así que los
+# minutos de GitHub Actions son gratis e ilimitados.
+#
+# Nota: los cron de GitHub Actions pueden retrasarse en horas pico; por eso se
+# pinguea cada 10 min (deja margen frente al umbral de 15 min). Para un uptime
+# más estricto, un monitor externo (p. ej. UptimeRobot, gratis, cada 5 min)
+# apuntando a la misma URL es más fiable.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: keepwarm
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping a la API
+        # /api/lugares es el healthcheck: no toca la BD, es barato. Cambia la URL
+        # si el servicio de Render se llama distinto.
+        run: |
+          URL="https://climabot-api-aiw3.onrender.com/api/lugares"
+          codigo=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 "$URL" || echo "000")
+          echo "Ping a $URL → HTTP $codigo"
+          # No se falla el workflow si el servicio estaba despertando (el propio
+          # ping lo despierta); solo se registra.
+          if [ "$codigo" != "200" ]; then
+            echo "::notice::Respuesta $codigo (puede ser un arranque en frío; el ping ya lo despertó)."
+          fi

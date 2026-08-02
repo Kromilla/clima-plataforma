@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { ThermometerSun, FlaskConical, Database } from 'lucide-react';
 import { fetchRiesgo, type Riesgo } from '../api';
 import { useLugar } from '../LugarContext';
@@ -25,6 +26,18 @@ export default function Risk() {
   const pct = Math.round((riesgo?.probabilidad ?? 0) * 100);
   const modelo = riesgo?.modelo;
 
+  // Si la carga se alarga (típico cuando el servicio free de Render venía
+  // dormido), se avisa para que la espera no parezca un error.
+  const [tardando, setTardando] = useState(false);
+  useEffect(() => {
+    if (!cargando) {
+      setTardando(false);
+      return;
+    }
+    const t = setTimeout(() => setTardando(true), 4000);
+    return () => clearTimeout(t);
+  }, [cargando]);
+
   return (
     <div>
       <PageHeader titulo="Riesgo de calor extremo" subtitulo="Modelo entrenado con el historial del proyecto" />
@@ -45,7 +58,15 @@ export default function Risk() {
       )}
 
       {cargando && !riesgo ? (
-        <div className="card card-pad"><div className="skeleton h-48 w-full" /></div>
+        <div className="card card-pad">
+          <div className="skeleton h-48 w-full" />
+          {tardando && (
+            <p className="mt-4 text-center text-sm text-muted">
+              Reactivando el servidor… la primera carga tras un rato de inactividad
+              puede tardar ~30&nbsp;s. Las siguientes son instantáneas.
+            </p>
+          )}
+        </div>
       ) : riesgo && !riesgo.disponible ? (
         <div className="card card-pad text-center">
           <Database className="mx-auto mb-3 h-8 w-8 text-muted" />
