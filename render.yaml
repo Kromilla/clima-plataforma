@@ -23,5 +23,5 @@ services:
         sync: false
       - key: FIRMS_MAP_KEY         # opcional (mapa de incendios)
         sync: false
-      - key: CORS_ORIGINS          # opcional: restringir al dominio de Vercel
-        sync: false
+      - key: CORS_ORIGINS          # restringido al dominio del dashboard (Vercel)
+        value: https://clima-plataforma.vercel.app
