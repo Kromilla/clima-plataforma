@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom';
 import {
-  Wind, Zap, Flame, ThermometerSun, Moon, Sun, Menu, X,
+  Wind, Zap, Flame, ThermometerSun, Moon, Sun, Menu, X, MapPin,
 } from 'lucide-react';
 import AirQuality from './pages/AirQuality';
 import Energy from './pages/Energy';
@@ -29,8 +29,11 @@ const NAVEGACION = [
   { ruta: '/riesgo', etiqueta: 'Riesgo de calor', icono: ThermometerSun },
 ];
 
-/** Marca: una ola bajo la Sierra Nevada, guiño a Santa Marta. */
+/** Marca: una ola bajo la Sierra Nevada. El subtítulo muestra la ciudad activa. */
 function Marca() {
+  const { lugarId, lugares } = useLugar();
+  const activo = lugares.find((l) => l.id === lugarId);
+  const ciudad = activo ? activo.nombre.split(',')[0] : 'Colombia';
   return (
     <div className="flex items-center gap-2.5">
       <div className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-brand to-sky-500 shadow-glow">
@@ -43,9 +46,30 @@ function Marca() {
       </div>
       <div className="leading-tight">
         <div className="font-display text-lg font-bold text-heading">ClimaBot</div>
-        <div className="text-[11px] font-medium text-muted">Santa Marta</div>
+        <div className="text-[11px] font-medium text-muted">{ciudad}</div>
       </div>
     </div>
+  );
+}
+
+/** Selector de ciudad. Se oculta si solo hay una (no estorba). */
+function SelectorLugar() {
+  const { lugarId, lugares, setLugarId } = useLugar();
+  if (lugares.length <= 1) return null;
+  return (
+    <label className="flex items-center gap-2">
+      <MapPin className="h-[18px] w-[18px] flex-shrink-0 text-muted" />
+      <select
+        value={lugarId ?? ''}
+        onChange={(e) => setLugarId(e.target.value)}
+        className="field max-w-[190px] cursor-pointer py-1.5"
+        aria-label="Ciudad"
+      >
+        {lugares.map((l) => (
+          <option key={l.id} value={l.id}>{l.nombre.split(',')[0]}</option>
+        ))}
+      </select>
+    </label>
   );
 }
 
@@ -158,9 +182,11 @@ function Layout({ children }: { children: ReactNode }) {
           <button className="text-muted lg:hidden" onClick={() => setMenu(true)} aria-label="Abrir menú">
             <Menu className="h-5 w-5" />
           </button>
-          <div className="min-w-0 flex-1">
+          <SelectorLugar />
+          <div className="hidden min-w-0 flex-1 sm:block">
             <SemaforoFuentes />
           </div>
+          <div className="flex-1 sm:hidden" />
           <BotonTema />
         </header>
 

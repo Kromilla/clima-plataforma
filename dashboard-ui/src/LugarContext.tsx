@@ -10,6 +10,8 @@ import { type Lugar } from './api';
 export interface LugarState {
   lugarId: string | null;
   lugares: Lugar[];
+  /** Cambia la ciudad activa (persiste la elección). */
+  setLugarId: (id: string) => void;
   error: string | null;
   /** Reintentos automáticos acumulados; >0 significa que el backend no responde. */
   intentos: number;
@@ -19,6 +21,7 @@ export interface LugarState {
 export const LugarCtx = createContext<LugarState>({
   lugarId: null,
   lugares: [],
+  setLugarId: () => {},
   error: null,
   intentos: 0,
   reintentar: () => {},
