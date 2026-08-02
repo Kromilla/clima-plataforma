@@ -14,6 +14,8 @@ def _bbox(lat: float, lon: float, dlat: float = 0.15, dlon: float = 0.20) -> tup
 
 
 # (id, nombre, lat, lon). Santa Marta primero: es el default histórico del proyecto.
+# Se recortó a las principales áreas metropolitanas: las capitales remotas
+# (Leticia, Mitú, San Andrés…) daban timeout en Open-Meteo bajo la ráfaga de 32.
 _CIUDADES = [
     ("santa-marta", "Santa Marta", 11.2408, -74.1990),
     ("bogota", "Bogotá", 4.7110, -74.0721),
@@ -29,24 +31,6 @@ _CIUDADES = [
     ("villavicencio", "Villavicencio", 4.1420, -73.6266),
     ("pasto", "Pasto", 1.2136, -77.2811),
     ("monteria", "Montería", 8.7479, -75.8814),
-    ("neiva", "Neiva", 2.9273, -75.2819),
-    ("armenia", "Armenia", 4.5339, -75.6811),
-    ("popayan", "Popayán", 2.4448, -76.6147),
-    ("valledupar", "Valledupar", 10.4631, -73.2532),
-    ("sincelejo", "Sincelejo", 9.3047, -75.3978),
-    ("riohacha", "Riohacha", 11.5449, -72.9072),
-    ("tunja", "Tunja", 5.5353, -73.3678),
-    ("florencia", "Florencia", 1.6144, -75.6062),
-    ("quibdo", "Quibdó", 5.6947, -76.6611),
-    ("yopal", "Yopal", 5.3378, -72.3959),
-    ("mocoa", "Mocoa", 1.1519, -76.6483),
-    ("san-jose-del-guaviare", "San José del Guaviare", 2.5698, -72.6407),
-    ("arauca", "Arauca", 7.0844, -70.7591),
-    ("leticia", "Leticia", -4.2153, -69.9406),
-    ("mitu", "Mitú", 1.2536, -70.2339),
-    ("puerto-carreno", "Puerto Carreño", 6.1890, -67.4859),
-    ("inirida", "Inírida", 3.8653, -67.9239),
-    ("san-andres", "San Andrés", 12.5847, -81.7006),
 ]
 
 LUGARES = {
