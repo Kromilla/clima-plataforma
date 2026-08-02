@@ -19,6 +19,8 @@ venv/
 .agents/
 .claude/skills/
 skills-lock.json
+# grafo de graphify (caché generada por AST, se reconstruye)
+graphify-out/
 
 # Frontend
 node_modules/
