@@ -106,7 +106,7 @@ pytest tests/ -q --cov=. --cov-report=term-missing
 pytest tests/test_robustez.py -v
 ```
 
-Los 98 tests no hacen peticiones reales a internet. Si añades un adaptador nuevo,
+Los 120 tests no hacen peticiones reales a internet. Si añades un adaptador nuevo,
 graba sus fixtures en `tests/fixtures/` usando `httpx` o `requests-mock`.
 
 ---

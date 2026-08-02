@@ -196,7 +196,7 @@ Every source has a cascade fallback: **live API → SQLite cache → clear messa
 pytest tests/ -q
 ```
 
-**98 tests, all offline** — API responses are recorded as fixtures. Every bug found by running the project left a regression test behind (see `tests/test_robustez.py`).
+**120 tests, all offline** — API responses are recorded as fixtures. Every bug found by running the project left a regression test behind (see `tests/test_robustez.py`).
 
 ---
 
@@ -414,7 +414,7 @@ Cada fuente cae en cascada: **API → caché SQLite → mensaje claro**. Toda le
 pytest tests/ -q
 ```
 
-**98 tests, todos sin conexión a internet** — las respuestas de las APIs están grabadas como fixtures. Cada bug encontrado ejecutando el proyecto dejó su test de regresión (ver `tests/test_robustez.py`).
+**120 tests, todos sin conexión a internet** — las respuestas de las APIs están grabadas como fixtures. Cada bug encontrado ejecutando el proyecto dejó su test de regresión (ver `tests/test_robustez.py`).
 
 ---
 
