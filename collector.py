@@ -33,10 +33,11 @@ logger = logging.getLogger("collector")
 
 def _notificar() -> None:
     """Dispara las alertas proactivas tras una pasada. Nunca frena al collector."""
-    try:
-        notificador.revisar_y_notificar()
-    except Exception as exc:  # noqa: BLE001 — un fallo de alerta no debe frenar la recolección
-        logger.exception("Error revisando alertas: %s", exc)
+    for revisar in (notificador.revisar_y_notificar, notificador.revisar_y_notificar_incendio):
+        try:
+            revisar()
+        except Exception as exc:  # noqa: BLE001 — un fallo de alerta no debe frenar la recolección
+            logger.exception("Error en %s: %s", revisar.__name__, exc)
 
 
 def _lugar_con_id(lugar_id: str) -> dict:

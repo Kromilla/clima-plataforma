@@ -177,3 +177,58 @@ def test_si_falla_el_envio_no_avanza_el_estado(db):
     accion = notificador.revisar_y_notificar(LUGAR, CHAT, enviar=espia_ok)
     assert accion == "alerta"
     assert len(espia_ok.mensajes) == 1
+
+
+# ── Alerta de incendio (2ª regla) ────────────────────────────────────────────
+
+def _foco(dist=5.0, sig=True, frp=30.0):
+    from types import SimpleNamespace
+
+    return SimpleNamespace(distancia_km=dist, es_significativo=sig, frp=frp)
+
+
+def test_incendio_alerta_y_estado(db):
+    espia = _Espia()
+    accion = notificador.revisar_y_notificar_incendio(LUGAR, CHAT, enviar=espia, focos=[_foco()])
+
+    assert accion == "alerta"
+    assert "FOCO DE CALOR" in espia.mensajes[0][0]
+    assert storage.obtener_config(f"alerta:incendio:estado:{CHAT}", db_path=db) == "activa"
+
+
+def test_incendio_no_repite_dentro_del_cooldown(db):
+    espia = _Espia()
+    notificador.revisar_y_notificar_incendio(LUGAR, CHAT, enviar=espia, focos=[_foco()])
+    accion = notificador.revisar_y_notificar_incendio(LUGAR, CHAT, enviar=espia, focos=[_foco()])
+
+    assert accion == "nada"
+    assert len(espia.mensajes) == 1
+
+
+def test_incendio_despejado_reset_silencioso(db):
+    espia = _Espia()
+    notificador.revisar_y_notificar_incendio(LUGAR, CHAT, enviar=espia, focos=[_foco()])  # activa
+    accion = notificador.revisar_y_notificar_incendio(LUGAR, CHAT, enviar=espia, focos=[])  # despejado
+
+    assert accion == "normalizado"
+    assert len(espia.mensajes) == 1, "el despeje no debe mandar mensaje (evita ruido)"
+    assert storage.obtener_config(f"alerta:incendio:estado:{CHAT}", db_path=db) == "normal"
+
+
+def test_incendio_foco_lejano_no_alerta(db):
+    espia = _Espia()
+    accion = notificador.revisar_y_notificar_incendio(
+        LUGAR, CHAT, enviar=espia, focos=[_foco(dist=80.0)],
+    )
+    assert accion == "nada"
+    assert espia.mensajes == []
+
+
+def test_incendio_firms_caido_sin_datos(db, monkeypatch):
+    """Si FIRMS no responde (o falta la clave), se omite en vez de reventar."""
+    monkeypatch.setattr(notificador, "_obtener_focos", lambda *a, **k: None)
+    espia = _Espia()
+    accion = notificador.revisar_y_notificar_incendio(LUGAR, CHAT, enviar=espia)
+
+    assert accion == "sin_datos"
+    assert espia.mensajes == []

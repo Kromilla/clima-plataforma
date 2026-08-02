@@ -26,9 +26,9 @@ from datetime import datetime, timezone
 import requests
 
 import storage
-from alerts import nivel_pm25, revisar_alerta
+from alerts import nivel_pm25, revisar_alerta, revisar_alerta_incendio
 from config import cfg
-from locations import DEFAULT_LUGAR
+from locations import DEFAULT_LUGAR, LUGARES
 
 logger = logging.getLogger(__name__)
 
@@ -169,5 +169,75 @@ def revisar_y_notificar(
     logger.info(
         "Alertas: PM2.5=%.1f umbral=%.1f estado=%s -> %s (envío=%s)",
         lectura.valor, umbral, estado, accion, "ok" if enviado else "falló",
+    )
+    return accion
+
+
+# ── 2ª regla: foco de calor cerca (FIRMS) ────────────────────────────────────
+
+def _obtener_focos(lugar_id: str, dias: int = 2):
+    """Focos de calor cerca del lugar, o None si FIRMS no está disponible."""
+    from sources import firms  # import diferido: arrastra requests solo si se usa
+
+    lugar = LUGARES[lugar_id].copy()
+    lugar["_id"] = lugar_id
+    try:
+        return firms.obtener_focos(lugar, dias=dias)
+    except firms.FirmsSinDatos as exc:  # incluye FirmsSinClave
+        logger.info("Alertas incendio: FIRMS no disponible (%s); se omite", exc)
+        return None
+
+
+def revisar_y_notificar_incendio(
+    lugar_id: str = DEFAULT_LUGAR,
+    chat_id: str | None = None,
+    *,
+    enviar=enviar_telegram,
+    ahora: datetime | None = None,
+    focos=None,
+) -> str:
+    """
+    Avisa si hay un foco de calor significativo cerca (2ª regla de alerta).
+
+    `focos` es inyectable para los tests; si es None se consulta FIRMS en vivo.
+    Reusa la misma histéresis anti-spam que el aire, con estado propio. Cuando el
+    foco se despeja, resetea el estado en silencio (no manda "todo despejado":
+    sería ruido).
+    """
+    chat_id = chat_id or cfg.TELEGRAM_CHAT_ID
+    ahora = ahora or datetime.now(timezone.utc)
+
+    if focos is None:
+        focos = _obtener_focos(lugar_id)
+    if focos is None:
+        return "sin_datos"
+
+    mensaje = revisar_alerta_incendio(focos)
+    hay_fuego = mensaje is not None
+
+    estado = storage.obtener_config(f"alerta:incendio:estado:{chat_id}", "normal")
+    ultima_ts = _parse_ts(storage.obtener_config(f"alerta:incendio:ultima:{chat_id}", ""))
+
+    # Se reusa la máquina de estados del aire tratando "hay fuego" como valor≥umbral.
+    accion, nuevo_estado, nueva_ts = decidir(
+        1.0 if hay_fuego else 0.0, 1.0, estado, ultima_ts, ahora,
+    )
+
+    enviado = True
+    if accion == "alerta":
+        enviado = enviar(mensaje, chat_id)
+    elif accion == "recordatorio":
+        enviado = enviar("🔁 *Recordatorio — el foco sigue activo*\n\n" + mensaje, chat_id)
+    # "normalizado" → foco despejado: reset silencioso, sin mensaje.
+
+    if enviado and accion != "nada":
+        storage.guardar_config(f"alerta:incendio:estado:{chat_id}", nuevo_estado)
+        storage.guardar_config(
+            f"alerta:incendio:ultima:{chat_id}", nueva_ts.isoformat() if nueva_ts else "",
+        )
+
+    logger.info(
+        "Alertas incendio: fuego=%s estado=%s -> %s (envío=%s)",
+        hay_fuego, estado, accion, "ok" if enviado else "falló",
     )
     return accion
