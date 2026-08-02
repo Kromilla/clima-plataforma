@@ -22,12 +22,21 @@ import sys
 import time
 
 import logging_setup
+import notificador
 import storage
 from config import cfg
 from locations import LUGARES
 from sources.registry import FUENTES
 
 logger = logging.getLogger("collector")
+
+
+def _notificar() -> None:
+    """Dispara las alertas proactivas tras una pasada. Nunca frena al collector."""
+    try:
+        notificador.revisar_y_notificar()
+    except Exception as exc:  # noqa: BLE001 — un fallo de alerta no debe frenar la recolección
+        logger.exception("Error revisando alertas: %s", exc)
 
 
 def _lugar_con_id(lugar_id: str) -> dict:
@@ -93,6 +102,7 @@ def main() -> None:
 
     if args.una_vez:
         resumen = recolectar_una_vez()
+        _notificar()
         fallos = sum(1 for v in resumen.values() if v.startswith("ERROR"))
         omitidas = sum(1 for v in resumen.values() if v == "sin clave")
         exitos = len(resumen) - fallos - omitidas
@@ -117,6 +127,7 @@ def main() -> None:
     while True:
         try:
             recolectar_una_vez()
+            _notificar()
         except Exception as exc:  # noqa: BLE001 — el bucle nunca debe morir
             logger.exception("Error inesperado en la pasada: %s", exc)
         time.sleep(args.intervalo)
