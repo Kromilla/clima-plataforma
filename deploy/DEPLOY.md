@@ -11,9 +11,12 @@ Pone ClimaBot en línea sin tarjeta de crédito. Tres piezas:
 
 > El collector NO va en Render: sus cron jobs son de pago. Se corre como workflow
 > programado de GitHub Actions, que es gratis.
-> El bot de Telegram tampoco se despliega aquí (los workers 24/7 de Render son de
-> pago); corre local. La alternativa "todo en una VM 24/7" (incluido el bot) está
-> en [`DEPLOY_oracle.md`](DEPLOY_oracle.md).
+> El bot de Telegram **sí responde en producción**: no como worker 24/7 (son de
+> pago), sino por *webhook* dentro del mismo servicio de la API. Telegram hace
+> POST a `/telegram/webhook` cuando llega un comando, lo que además despierta el
+> servicio si estaba dormido. Se configura solo al arrancar (usa la URL pública
+> que Render inyecta en `RENDER_EXTERNAL_URL`); no hay que tocar nada.
+> La alternativa "todo en una VM 24/7" está en [`DEPLOY_oracle.md`](DEPLOY_oracle.md).
 
 ---
 
@@ -46,7 +49,9 @@ Ya creado. Solo necesitas la cadena de conexión:
    Pruébala: abre `https://climabot-api.onrender.com/api/lugares` → debe devolver JSON.
 
 > **Nota:** el plan free se **duerme** tras 15 min sin tráfico; la primera visita
-> luego de dormir tarda ~30-50 s en despertar. Es normal.
+> luego de dormir tarda ~30-50 s en despertar. Es normal. Lo mismo aplica al bot:
+> el primer comando tras un rato tarda en responder (ese POST es el que despierta
+> el servicio); los siguientes son instantáneos.
 
 ---
 
@@ -101,6 +106,7 @@ El recolector corre como workflow programado (ya está en el repo:
 ```
 Navegador → Vercel (dashboard) --VITE_API_URL--> Render (API) --> Supabase (Postgres)
 GitHub Actions (collector, cada 20 min) ───────────────────────> Supabase
+Telegram --POST /telegram/webhook--> Render (API, mismo servicio) --> Supabase
 ```
 
 El código lee `DATABASE_URL` / `VITE_API_URL` del entorno; los secretos viven en

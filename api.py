@@ -6,21 +6,78 @@ una fuente nueva no requiere tocar este archivo (principio §5.1 del informe).
 """
 from __future__ import annotations
 
+import hashlib
+import logging
 import os
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 import risk
 import storage
+import telegram_handlers
+from config import cfg
 from locations import DEFAULT_LUGAR, LUGARES
 from sources import firms
 from sources.base import Lectura
 from sources.registry import FUENTES, por_id
 
-app = FastAPI(title="ClimaBot API")
+# httpx (que usa la librería de Telegram) loguea la URL con el token; silenciarlo.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+
+logger = logging.getLogger("api")
+
+
+# ── Bot de Telegram por webhook ───────────────────────────────────────────────
+# En Render, Telegram hace POST a este servicio en vez de que el bot haga polling
+# (que necesitaría un proceso 24/7 aparte). Se activa solo si hay una URL pública
+# (RENDER_EXTERNAL_URL la define Render); en local no se toca (ahí corre bot.py).
+
+def _webhook_base() -> str | None:
+    return os.environ.get("WEBHOOK_URL") or os.environ.get("RENDER_EXTERNAL_URL")
+
+
+def _webhook_secret() -> str:
+    """Secreto determinista derivado del token (sin configuración extra)."""
+    return hashlib.sha256(cfg.TELEGRAM_BOT_TOKEN.encode()).hexdigest()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    from telegram import Update
+    from telegram.ext import Application
+
+    app.state.tg = None
+    base = _webhook_base()
+    if base and cfg.TELEGRAM_BOT_TOKEN:
+        try:
+            tg = Application.builder().token(cfg.TELEGRAM_BOT_TOKEN).updater(None).build()
+            telegram_handlers.registrar(tg)
+            await tg.initialize()
+            await tg.start()
+            url = f"{base.rstrip('/')}/telegram/webhook"
+            await tg.bot.set_webhook(
+                url=url, secret_token=_webhook_secret(),
+                allowed_updates=Update.ALL_TYPES,
+            )
+            app.state.tg = tg
+            logger.info("Webhook de Telegram configurado en %s", url)
+        except Exception as exc:  # noqa: BLE001 — un fallo del bot no debe tumbar la API
+            logger.warning("No se pudo configurar el webhook de Telegram: %s", exc)
+
+    yield
+
+    if app.state.tg is not None:
+        # No se borra el webhook: así Telegram sigue despertando el servicio dormido.
+        await app.state.tg.stop()
+        await app.state.tg.shutdown()
+
+
+app = FastAPI(title="ClimaBot API", lifespan=lifespan)
 
 # Dashboard (Vercel) y API (Render) viven en dominios distintos → hace falta CORS.
 # credentials=False porque la app no usa cookies (y con credenciales el "*" sería
@@ -35,6 +92,30 @@ app.add_middleware(
 )
 
 storage.inicializar_bd()
+
+
+@app.post("/telegram/webhook")
+async def telegram_webhook(
+    request: Request,
+    x_telegram_bot_api_secret_token: str = Header(default=""),
+):
+    """
+    Recibe los updates que Telegram envía por webhook (solo en Render).
+
+    El header secreto lo comprueba primero: descarta POST falsos sin tocar el bot.
+    """
+    if x_telegram_bot_api_secret_token != _webhook_secret():
+        raise HTTPException(status_code=403, detail="Token de webhook inválido")
+
+    tg = getattr(app.state, "tg", None)
+    if tg is None:
+        raise HTTPException(status_code=503, detail="Bot no inicializado")
+
+    from telegram import Update
+
+    update = Update.de_json(await request.json(), tg.bot)
+    await tg.process_update(update)
+    return {"ok": True}
 
 
 class LecturaSchema(BaseModel):

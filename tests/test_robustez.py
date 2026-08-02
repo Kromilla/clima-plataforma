@@ -443,3 +443,53 @@ def test_el_recolector_no_guarda_por_duplicado():
     assert "storage.guardar(" not in codigo, (
         "el recolector no debe guardar: de eso se encarga cada adaptador"
     )
+
+
+# ── Webhook de Telegram: el bot responde por Render, no por polling ──────────
+
+def test_webhook_rechaza_secreto_invalido():
+    """
+    Telegram firma cada POST con un header secreto. Un POST sin ese header (o con
+    uno falso) debe rechazarse antes de tocar el bot, para descartar POST falsos.
+    """
+    resp = _cliente().post(
+        "/telegram/webhook",
+        json={"update_id": 1},
+        headers={"X-Telegram-Bot-Api-Secret-Token": "secreto-falso"},
+    )
+    assert resp.status_code == 403
+
+
+def test_webhook_sin_header_secreto_se_rechaza():
+    resp = _cliente().post("/telegram/webhook", json={"update_id": 1})
+    assert resp.status_code == 403
+
+
+def test_webhook_con_secreto_valido_sin_bot_responde_503():
+    """
+    En local/tests no hay RENDER_EXTERNAL_URL, así que el lifespan no arranca el
+    bot. Con el secreto correcto pero sin bot inicializado debe responder 503,
+    no reventar con un 500.
+    """
+    import api
+
+    resp = _cliente().post(
+        "/telegram/webhook",
+        json={"update_id": 1},
+        headers={"X-Telegram-Bot-Api-Secret-Token": api._webhook_secret()},
+    )
+    assert resp.status_code == 503
+
+
+def test_el_secreto_del_webhook_es_valido_para_telegram():
+    """
+    Telegram solo acepta secret_token con [A-Za-z0-9_-] y hasta 256 chars. El
+    sha256 en hex (64 chars) cumple; conviene fijarlo por si cambia la derivación.
+    """
+    import re
+
+    import api
+
+    secreto = api._webhook_secret()
+    assert 1 <= len(secreto) <= 256
+    assert re.fullmatch(r"[A-Za-z0-9_-]+", secreto)

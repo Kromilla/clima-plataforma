@@ -1,0 +1,15 @@
+# Configuración de herramientas del proyecto (pytest, ruff).
+# Los tests viven solo en tests/: sin acotarlo, `pytest` recogería también los
+# scripts de scripts/ (p. ej. telegram_test.py, que hace una llamada real a la
+# API de Telegram al importarse) y la suite fallaría al recolectar.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = ["E501"]
