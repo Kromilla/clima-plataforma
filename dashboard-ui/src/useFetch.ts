@@ -53,8 +53,21 @@ export function useFetch<T>(
   const [gatillo, setGatillo] = useState(0);
   const recargar = useCallback(() => setGatillo((n) => n + 1), []);
 
+  // Cuando cambia la dependencia (p. ej. la ciudad) se descartan los datos del
+  // lugar anterior para mostrar el skeleton de inmediato. Sin esto quedaban
+  // pegados los del lugar previo hasta que llegaba lo nuevo: parecía congelado.
+  const depsKey = JSON.stringify(deps);
+  const depsPrevias = useRef(depsKey);
+
   useEffect(() => {
     if (!activo) return;
+
+    if (depsPrevias.current !== depsKey) {
+      depsPrevias.current = depsKey;
+      setDatos(null);
+      setError(null);
+      setIntentos(0);
+    }
 
     let cancelado = false;
     let temporizador: ReturnType<typeof setTimeout>;
