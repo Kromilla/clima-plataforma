@@ -1,52 +1,64 @@
-# Ciudades monitoreadas. Agregar una = una entrada más aquí; cero cambios en el
-# resto del código (el collector itera LUGARES, la API expone lugar_id y el
-# dashboard lo pasa en cada request).
+# Ciudades monitoreadas: las 32 capitales departamentales de Colombia + Bogotá.
+# Agregar/quitar = editar la lista; cero cambios en el resto del código (el
+# collector itera LUGARES, la API expone lugar_id, el dashboard lo pasa siempre).
 #
-# bbox = (lon_min, lat_min, lon_max, lat_max) — recuadro para FIRMS.
+# El bbox (para FIRMS) se calcula del lat/lon: menos propenso a errores que
+# escribir 33 recuadros a mano.
 # zona_electricidad = "CO": XM publica la intensidad de la red NACIONAL, así que
-# el dato de energía es el mismo para todas las ciudades de Colombia (el aire, el
-# clima y los incendios sí son locales).
+# la energía es la misma para todas; el aire, el clima y los incendios sí son
+# locales (dependen del lat/lon y el bbox).
+
+
+def _bbox(lat: float, lon: float, dlat: float = 0.15, dlon: float = 0.20) -> tuple:
+    return (round(lon - dlon, 3), round(lat - dlat, 3), round(lon + dlon, 3), round(lat + dlat, 3))
+
+
+# (id, nombre, lat, lon). Santa Marta primero: es el default histórico del proyecto.
+_CIUDADES = [
+    ("santa-marta", "Santa Marta", 11.2408, -74.1990),
+    ("bogota", "Bogotá", 4.7110, -74.0721),
+    ("medellin", "Medellín", 6.2442, -75.5812),
+    ("cali", "Cali", 3.4516, -76.5320),
+    ("barranquilla", "Barranquilla", 10.9685, -74.7813),
+    ("cartagena", "Cartagena", 10.3910, -75.4794),
+    ("cucuta", "Cúcuta", 7.8939, -72.5078),
+    ("bucaramanga", "Bucaramanga", 7.1193, -73.1227),
+    ("pereira", "Pereira", 4.8133, -75.6961),
+    ("ibague", "Ibagué", 4.4389, -75.2322),
+    ("manizales", "Manizales", 5.0703, -75.5138),
+    ("villavicencio", "Villavicencio", 4.1420, -73.6266),
+    ("pasto", "Pasto", 1.2136, -77.2811),
+    ("monteria", "Montería", 8.7479, -75.8814),
+    ("neiva", "Neiva", 2.9273, -75.2819),
+    ("armenia", "Armenia", 4.5339, -75.6811),
+    ("popayan", "Popayán", 2.4448, -76.6147),
+    ("valledupar", "Valledupar", 10.4631, -73.2532),
+    ("sincelejo", "Sincelejo", 9.3047, -75.3978),
+    ("riohacha", "Riohacha", 11.5449, -72.9072),
+    ("tunja", "Tunja", 5.5353, -73.3678),
+    ("florencia", "Florencia", 1.6144, -75.6062),
+    ("quibdo", "Quibdó", 5.6947, -76.6611),
+    ("yopal", "Yopal", 5.3378, -72.3959),
+    ("mocoa", "Mocoa", 1.1519, -76.6483),
+    ("san-jose-del-guaviare", "San José del Guaviare", 2.5698, -72.6407),
+    ("arauca", "Arauca", 7.0844, -70.7591),
+    ("leticia", "Leticia", -4.2153, -69.9406),
+    ("mitu", "Mitú", 1.2536, -70.2339),
+    ("puerto-carreno", "Puerto Carreño", 6.1890, -67.4859),
+    ("inirida", "Inírida", 3.8653, -67.9239),
+    ("san-andres", "San Andrés", 12.5847, -81.7006),
+]
+
 LUGARES = {
-    "santa-marta": {
-        "nombre": "Santa Marta, Colombia",
-        "lat": 11.2408,
-        "lon": -74.1990,
-        "bbox": (-74.30, 11.05, -73.85, 11.40),
+    cid: {
+        "nombre": f"{nombre}, Colombia",
+        "lat": lat,
+        "lon": lon,
+        "bbox": _bbox(lat, lon),
         "zona_electricidad": "CO",
-        "fallback_openaq": "barranquilla",  # estación más cercana (~90 km)
-    },
-    "barranquilla": {
-        "nombre": "Barranquilla, Colombia",
-        "lat": 10.9685,
-        "lon": -74.7813,
-        "bbox": (-74.95, 10.85, -74.65, 11.10),
-        "zona_electricidad": "CO",
-        "fallback_openaq": "barranquilla",
-    },
-    "cartagena": {
-        "nombre": "Cartagena, Colombia",
-        "lat": 10.3910,
-        "lon": -75.4794,
-        "bbox": (-75.65, 10.25, -75.30, 10.55),
-        "zona_electricidad": "CO",
-        "fallback_openaq": "cartagena",
-    },
-    "bogota": {
-        "nombre": "Bogotá, Colombia",
-        "lat": 4.7110,
-        "lon": -74.0721,
-        "bbox": (-74.25, 4.55, -73.95, 4.85),
-        "zona_electricidad": "CO",
-        "fallback_openaq": "bogota",
-    },
-    "medellin": {
-        "nombre": "Medellín, Colombia",
-        "lat": 6.2442,
-        "lon": -75.5812,
-        "bbox": (-75.75, 6.10, -75.45, 6.40),
-        "zona_electricidad": "CO",
-        "fallback_openaq": "medellin",
-    },
+        "fallback_openaq": cid,
+    }
+    for cid, nombre, lat, lon in _CIUDADES
 }
 
 DEFAULT_LUGAR = "santa-marta"
