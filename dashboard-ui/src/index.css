@@ -7,6 +7,7 @@
    Tailwind (rgb(var(--c-x) / <alpha-value>)). El modo oscuro solo redefine
    estas variables; ningún componente necesita saber en qué tema está. */
 :root {
+  color-scheme: light;           /* controles nativos (select, scrollbar) en claro */
   --c-app: 241 245 249;          /* slate-100, un lienzo suave */
   --c-surface: 255 255 255;      /* cartas */
   --c-surface-soft: 248 250 252; /* tiles internas */
@@ -25,6 +26,7 @@
 }
 
 html.dark {
+  color-scheme: dark;            /* controles nativos (select, scrollbar) en oscuro */
   --c-app: 2 6 23;               /* slate-950 */
   --c-surface: 15 23 42;         /* slate-900 */
   --c-surface-soft: 30 41 59;    /* slate-800 */
