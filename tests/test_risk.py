@@ -227,7 +227,8 @@ def test_umbral_imposible_lanza_error_claro(db_con_historial):
     """Si ningún día supera el umbral no hay dos clases que distinguir."""
     with pytest.raises(risk.DatosInsuficientes) as exc:
         risk.entrenar("santa-marta", umbral_ic=200.0)
-    assert "umbral" in str(exc.value).lower() or "ningún" in str(exc.value).lower()
+    assert exc.value.motivo == "sin_calor_extremo"
+    assert "calor" in str(exc.value).lower()
 
 
 def test_umbral_trivial_lanza_error(db_con_historial):

@@ -110,6 +110,8 @@ export function fetchIncendios(lugarId: string, dias = 2) {
 export interface Riesgo {
   disponible: boolean;
   etiqueta: string;
+  /** Cuando no está disponible: por qué. */
+  motivo?: 'sin_historial' | 'sin_calor_extremo';
   mensaje?: string;
   probabilidad?: number;
   nivel?: 'bajo' | 'moderado' | 'alto';

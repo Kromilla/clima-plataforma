@@ -67,13 +67,19 @@ export default function Risk() {
             </p>
           )}
         </div>
+      ) : riesgo && !riesgo.disponible && riesgo.motivo === 'sin_calor_extremo' ? (
+        <div className="card card-pad text-center">
+          <ThermometerSun className="mx-auto mb-3 h-8 w-8 text-muted" />
+          <h3 className="font-semibold text-heading">Sin calor extremo de riesgo</h3>
+          <p className="mx-auto mt-2 max-w-md text-sm text-body">{riesgo.mensaje}</p>
+        </div>
       ) : riesgo && !riesgo.disponible ? (
         <div className="card card-pad text-center">
           <Database className="mx-auto mb-3 h-8 w-8 text-muted" />
           <h3 className="font-semibold text-heading">Historial insuficiente</h3>
           <p className="mx-auto mt-2 max-w-md text-sm text-body">{riesgo.mensaje}</p>
           <code className="mt-3 inline-block rounded bg-surface-soft px-3 py-1.5 text-sm">
-            python backfill.py --dias 730
+            python backfill.py --lugar &lt;ciudad&gt; --dias 365
           </code>
         </div>
       ) : riesgo ? (

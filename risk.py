@@ -47,7 +47,11 @@ FUENTE_CLIMA = "openmeteo-clima"
 
 
 class DatosInsuficientes(Exception):
-    """No hay suficiente historial para entrenar."""
+    """No se puede entrenar el predictor (sin historial, o sin calor de riesgo)."""
+
+    def __init__(self, mensaje: str, motivo: str = "sin_historial"):
+        super().__init__(mensaje)
+        self.motivo = motivo
 
 
 def indice_calor(temp_c: float, humedad_pct: float) -> float:
@@ -340,9 +344,10 @@ def entrenar(
     n_riesgo = int(y.sum())
     if n_riesgo == 0:
         raise DatosInsuficientes(
-            f"Ningún día del historial supera un índice de calor de {umbral_ic} °C, "
-            "así que no hay nada que aprender a distinguir. Baja el umbral o "
-            "amplía el periodo."
+            f"El índice de calor no alcanza niveles de riesgo (≥{umbral_ic:.0f} °C) "
+            "en el historial de esta ciudad, así que el predictor de calor extremo "
+            "no aplica aquí. Es lo normal en clima templado o frío.",
+            motivo="sin_calor_extremo",
         )
     if n_riesgo == len(y):
         raise DatosInsuficientes(

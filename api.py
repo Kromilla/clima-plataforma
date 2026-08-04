@@ -354,6 +354,7 @@ def obtener_riesgo(lugar_id: str = DEFAULT_LUGAR):
     except risk.DatosInsuficientes as exc:
         return {
             "disponible": False,
+            "motivo": getattr(exc, "motivo", "sin_historial"),
             "mensaje": str(exc),
             "etiqueta": "⚠️ Estimación experimental — no es una alerta oficial",
         }
