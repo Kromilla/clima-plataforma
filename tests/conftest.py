@@ -22,3 +22,14 @@ if str(ROOT) not in sys.path:
 # `setdefault` no pisa un .env o entorno real si ya está presente.
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "test-token")
 os.environ.setdefault("TELEGRAM_CHAT_ID", "0")
+
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _limpiar_cache_firms():
+    """El cache de focos de firms es estado de módulo; limpiarlo aísla los tests."""
+    import sources.firms as firms
+    firms._CACHE_FOCOS.clear()
+    yield
+    firms._CACHE_FOCOS.clear()

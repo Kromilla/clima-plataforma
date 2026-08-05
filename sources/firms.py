@@ -23,6 +23,7 @@ from __future__ import annotations
 import csv
 import io
 import logging
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from math import asin, cos, radians, sin, sqrt
@@ -43,6 +44,12 @@ _UNIDAD = "focos"
 _SATELITE = "VIIRS_SNPP_NRT"
 _DIAS = 2          # "focos de las últimas 24-48h" (§6, Fase 3)
 _DIAS_MAX = 10     # límite duro de la API
+
+# Cache breve de focos por (bbox, días): el collector consulta FIRMS al recolectar
+# y el notificador otra vez en la misma pasada. VIIRS actualiza ~2 veces/día, así
+# que reusar unos minutos elimina la llamada duplicada sin perder frescura.
+_CACHE_FOCOS: dict[str, tuple[float, list]] = {}
+_CACHE_TTL_SEG = 900
 
 
 class FirmsSinDatos(Exception):
@@ -176,6 +183,11 @@ def obtener_focos(lugar: dict, dias: int = _DIAS) -> list[Foco]:
     area = f"{lon_min},{lat_min},{lon_max},{lat_max}"
     dias = max(1, min(dias, _DIAS_MAX))
 
+    clave = f"{area}/{dias}"
+    en_cache = _CACHE_FOCOS.get(clave)
+    if en_cache is not None and (time.monotonic() - en_cache[0]) < _CACHE_TTL_SEG:
+        return list(en_cache[1])
+
     url = f"{_BASE_URL}/{cfg.FIRMS_MAP_KEY}/{_SATELITE}/{area}/{dias}"
 
     try:
@@ -201,6 +213,7 @@ def obtener_focos(lugar: dict, dias: int = _DIAS) -> list[Foco]:
         for f in focos
     ]
     focos.sort(key=lambda f: f.distancia_km)
+    _CACHE_FOCOS[clave] = (time.monotonic(), list(focos))
     return focos
 
 
