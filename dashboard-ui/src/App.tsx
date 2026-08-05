@@ -64,7 +64,7 @@ function SelectorLugar() {
       <select
         value={lugarId ?? ''}
         onChange={(e) => setLugarId(e.target.value)}
-        className="field max-w-[190px] cursor-pointer py-1.5"
+        className="field min-h-[44px] max-w-[190px] cursor-pointer py-1.5"
         aria-label="Ciudad"
       >
         {lugares.map((l) => (
@@ -105,7 +105,7 @@ function BotonTema() {
   return (
     <button
       onClick={alternar}
-      className="grid h-9 w-9 place-items-center rounded-xl border border-line text-muted
+      className="grid h-11 w-11 place-items-center rounded-xl border border-line text-muted
                  transition-colors hover:bg-surface-soft hover:text-heading"
       title={tema === 'oscuro' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
       aria-label="Cambiar tema"
@@ -130,7 +130,7 @@ function Sidebar({ abierto, cerrar }: { abierto: boolean; cerrar: () => void }) 
       >
         <div className="flex items-center justify-between px-5 py-5">
           <Marca />
-          <button className="text-muted lg:hidden" onClick={cerrar} aria-label="Cerrar menú">
+          <button className="grid h-11 w-11 place-items-center text-muted lg:hidden" onClick={cerrar} aria-label="Cerrar menú">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -181,7 +181,7 @@ function Layout({ children }: { children: ReactNode }) {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 flex items-center gap-4 border-b border-line
                            bg-app/70 px-4 py-3 backdrop-blur-xl sm:px-6">
-          <button className="text-muted lg:hidden" onClick={() => setMenu(true)} aria-label="Abrir menú">
+          <button className="grid h-11 w-11 place-items-center text-muted lg:hidden" onClick={() => setMenu(true)} aria-label="Abrir menú">
             <Menu className="h-5 w-5" />
           </button>
           <SelectorLugar />
