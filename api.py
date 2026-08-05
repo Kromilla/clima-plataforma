@@ -7,6 +7,7 @@ una fuente nueva no requiere tocar este archivo (principio §5.1 del informe).
 from __future__ import annotations
 
 import hashlib
+import hmac
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -104,7 +105,8 @@ async def telegram_webhook(
 
     El header secreto lo comprueba primero: descarta POST falsos sin tocar el bot.
     """
-    if x_telegram_bot_api_secret_token != _webhook_secret():
+    # compare_digest: comparación en tiempo constante, sin fuga por timing.
+    if not hmac.compare_digest(x_telegram_bot_api_secret_token, _webhook_secret()):
         raise HTTPException(status_code=403, detail="Token de webhook inválido")
 
     tg = getattr(app.state, "tg", None)
