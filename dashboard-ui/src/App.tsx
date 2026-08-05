@@ -1,12 +1,14 @@
-import { useState, type ReactNode } from 'react';
+import { lazy, Suspense, useState, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom';
 import {
   Wind, Zap, Flame, ThermometerSun, Moon, Sun, Menu, X, MapPin,
 } from 'lucide-react';
-import AirQuality from './pages/AirQuality';
-import Energy from './pages/Energy';
-import Fires from './pages/Fires';
-import Risk from './pages/Risk';
+// Cada página en su propio chunk: Leaflet (mapa) y Recharts (gráficas) no cargan
+// hasta que se visita su pestaña, aligerando el bundle inicial.
+const AirQuality = lazy(() => import('./pages/AirQuality'));
+const Energy = lazy(() => import('./pages/Energy'));
+const Fires = lazy(() => import('./pages/Fires'));
+const Risk = lazy(() => import('./pages/Risk'));
 import { fetchEstadoFuentes, type EstadoFuente } from './api';
 import { useLugar } from './LugarContext';
 import { LugarProvider } from './LugarProvider';
@@ -208,6 +210,7 @@ export default function App() {
       <BrowserRouter>
         <LugarProvider>
           <Layout>
+          <Suspense fallback={<div className="card card-pad"><div className="skeleton h-48 w-full" /></div>}>
           <Routes>
             <Route path="/" element={<AirQuality />} />
             <Route path="/energia" element={<Energy />} />
@@ -216,6 +219,7 @@ export default function App() {
             {/* Cualquier ruta desconocida (incluidas /huella y /quiz retiradas) vuelve al inicio. */}
             <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
+          </Suspense>
           </Layout>
         </LugarProvider>
       </BrowserRouter>
