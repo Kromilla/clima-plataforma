@@ -51,6 +51,10 @@ El objetivo es mantener un ambiente respetuoso y constructivo para todos.
 
 ### Instalación
 
+> **Atajo (macOS/Linux/Git Bash con `make`):** `make install` instala todo y
+> `make dev` levanta API + collector + dashboard juntos (Ctrl-C los detiene).
+> `make test` corre la suite + el build. Sin `make`, sigue los pasos manuales.
+
 ```bash
 # 1. Fork + clonar
 git clone https://github.com/TU-USUARIO/clima-plataforma.git
