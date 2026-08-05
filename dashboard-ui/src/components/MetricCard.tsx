@@ -37,7 +37,7 @@ export default function MetricCard({
       </div>
 
       <div className="mt-5">
-        <h3 className="text-sm font-medium text-muted">{titulo}</h3>
+        <h2 className="text-sm font-medium text-muted">{titulo}</h2>
 
         {cargando && !lectura ? (
           <div className="mt-2 space-y-2">

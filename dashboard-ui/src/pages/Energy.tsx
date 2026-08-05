@@ -76,7 +76,7 @@ export default function Energy() {
         <div className="card card-pad">
           <div className="flex items-center gap-2">
             <Info className="h-4 w-4 text-brand" />
-            <h3 className="text-sm font-semibold text-heading">Sobre esta fuente</h3>
+            <h2 className="text-sm font-semibold text-heading">Sobre esta fuente</h2>
           </div>
           <p className="mt-3 text-sm leading-relaxed text-body">
             Datos oficiales de <strong className="text-heading">XM</strong>, operador del mercado
@@ -92,7 +92,7 @@ export default function Energy() {
       </div>
 
       <div className="card card-pad mt-4 sm:mt-6">
-        <h3 className="mb-6 text-base font-semibold text-heading">Intensidad de carbono por hora</h3>
+        <h2 className="mb-6 text-base font-semibold text-heading">Intensidad de carbono por hora</h2>
         <div className="h-72 w-full sm:h-80">
           {datosGrafica.length > 1 ? (
             <ResponsiveContainer width="100%" height="100%">

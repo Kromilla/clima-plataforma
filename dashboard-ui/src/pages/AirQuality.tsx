@@ -83,9 +83,9 @@ export default function AirQuality() {
       </div>
 
       <div className="card card-pad mt-4 sm:mt-6">
-        <h3 className="mb-6 text-base font-semibold text-heading">
+        <h2 className="mb-6 text-base font-semibold text-heading">
           Tendencia PM2.5 · últimas {datosGrafica.length || 24} lecturas
-        </h3>
+        </h2>
         <div className="h-72 w-full sm:h-80">
           {datosGrafica.length > 1 ? (
             <ResponsiveContainer width="100%" height="100%">

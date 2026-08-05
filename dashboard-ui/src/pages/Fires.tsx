@@ -30,9 +30,9 @@ function PanelSinDatos({ data }: { data: RespuestaIncendios }) {
             : <AlertTriangle className="h-6 w-6 text-amber-600 dark:text-amber-400" />}
         </div>
       </div>
-      <h3 className="text-lg font-semibold text-heading">
+      <h2 className="text-lg font-semibold text-heading">
         {sinClave ? 'Falta configurar la clave de NASA FIRMS' : 'FIRMS no está respondiendo'}
-      </h3>
+      </h2>
       {sinClave ? (
         <div className="mx-auto mt-3 max-w-lg space-y-3 text-sm text-body">
           <p>La capa de incendios necesita una MAP_KEY gratuita de la NASA. El resto del dashboard funciona sin ella.</p>
@@ -125,7 +125,7 @@ export default function Fires() {
 
           <div className="card card-pad mt-4 sm:mt-6">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <h3 className="text-base font-semibold text-heading">Mapa</h3>
+              <h2 className="text-base font-semibold text-heading">Mapa</h2>
               <div className="flex items-center gap-4 text-xs text-muted">
                 {[
                   { c: '#f59e0b', t: '< 10 MW' },
