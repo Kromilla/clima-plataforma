@@ -9,6 +9,8 @@ import os
 import sys
 from pathlib import Path
 
+import pytest
+
 # Agrega la raíz del proyecto al PYTHONPATH.
 ROOT = Path(__file__).parent.parent
 if str(ROOT) not in sys.path:
@@ -22,8 +24,6 @@ if str(ROOT) not in sys.path:
 # `setdefault` no pisa un .env o entorno real si ya está presente.
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "test-token")
 os.environ.setdefault("TELEGRAM_CHAT_ID", "0")
-
-import pytest
 
 
 @pytest.fixture(autouse=True)
