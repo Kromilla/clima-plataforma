@@ -176,12 +176,16 @@ def guardar_muchas(lecturas: list[Lectura], db_path: str | None = None) -> int:
     filas = [_fila(lec) for lec in lecturas]
 
     with _conexion(db_path) as (con, es_pg):
-        antes = con.execute("SELECT COUNT(*) AS n FROM lecturas").fetchone()["n"]
         cur = con.cursor()
+        # `rowcount` da las filas realmente insertadas (INSERT OR IGNORE / ON
+        # CONFLICT DO NOTHING no cuentan las repetidas). Antes se hacían dos
+        # `SELECT COUNT(*)` de toda la tabla: con cientos de miles de filas en
+        # Supabase eso era un full-scan por cada fuente × ciudad → el collector
+        # de 14 ciudades tardaba 15+ min y lo mataban.
         cur.executemany(_sql_insert(es_pg), filas)
-        despues = con.execute("SELECT COUNT(*) AS n FROM lecturas").fetchone()["n"]
+        nuevas = cur.rowcount
 
-    return despues - antes
+    return nuevas if nuevas and nuevas > 0 else 0
 
 
 def _row_a_lectura(row: object) -> Lectura:
