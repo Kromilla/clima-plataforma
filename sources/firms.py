@@ -183,7 +183,7 @@ def _fusionar(focos: list[Foco]) -> list[Foco]:
     return list(por_clave.values())
 
 
-def obtener_focos(lugar: dict, dias: int = _DIAS) -> list[Foco]:
+def obtener_focos(lugar: dict, dias: int = _DIAS, sensores: tuple = _SATELITES) -> list[Foco]:
     """
     Devuelve los focos dentro del bbox del lugar, ordenados por cercanía.
 
@@ -201,19 +201,20 @@ def obtener_focos(lugar: dict, dias: int = _DIAS) -> list[Foco]:
     area = f"{lon_min},{lat_min},{lon_max},{lat_max}"
     dias = max(1, min(dias, _DIAS_MAX))
 
-    clave = f"{area}/{dias}"
+    clave = f"{area}/{dias}/{','.join(sensores)}"
     en_cache = _CACHE_FOCOS.get(clave)
     if en_cache is not None and (time.monotonic() - en_cache[0]) < _CACHE_TTL_SEG:
         return list(en_cache[1])
 
-    # Se consulta cada satélite VIIRS y se fusionan. Si uno falla se sigue con los
-    # demás; solo se considera caída si fallan todos.
+    # Se consulta cada satélite pedido y se fusionan. Si uno falla se sigue con los
+    # demás; solo se considera caída si fallan todos. Timeout corto a propósito:
+    # FIRMS es intermitente desde CI y el collector (14 ciudades) no puede colgarse.
     crudos: list[Foco] = []
     fallos = 0
-    for sat in _SATELITES:
+    for sat in sensores:
         url = f"{_BASE_URL}/{cfg.FIRMS_MAP_KEY}/{sat}/{area}/{dias}"
         try:
-            resp = requests.get(url, timeout=30)
+            resp = requests.get(url, timeout=12)
             resp.raise_for_status()
         except requests.RequestException as exc:
             logger.warning("FIRMS %s no respondió: %s", sat, exc)
@@ -225,7 +226,7 @@ def obtener_focos(lugar: dict, dias: int = _DIAS) -> list[Foco]:
             raise FirmsSinClave(f"FIRMS rechazó la MAP_KEY: {texto[:100]}")
         crudos.extend(parsear_csv(texto))
 
-    if fallos == len(_SATELITES):
+    if fallos == len(sensores):
         raise FirmsSinDatos("FIRMS no respondió (ningún satélite disponible)")
 
     focos = _fusionar(crudos)
@@ -253,7 +254,9 @@ def obtener_ultimo(lugar: dict) -> Lectura:
     lugar_id = lugar.get("_id", "desconocido")
 
     try:
-        focos = obtener_focos(lugar)
+        # El conteo del semáforo usa un solo satélite (rápido); el mapa on-demand
+        # sí consulta los tres. Así el collector de 14 ciudades no se cuelga.
+        focos = obtener_focos(lugar, sensores=(_SATELITES[0],))
         # El timestamp es el de la detección más reciente, no "ahora": así la
         # antigüedad refleja cuándo pasó el satélite de verdad.
         ts = max((f.ts for f in focos), default=datetime.now(timezone.utc))
@@ -265,7 +268,7 @@ def obtener_ultimo(lugar: dict) -> Lectura:
             fuente=_FUENTE,
             procedencia="local",
             lugar_id=lugar_id,
-            estacion_nombre="NASA FIRMS / VIIRS (S-NPP + NOAA-20/21)",
+            estacion_nombre="NASA FIRMS / VIIRS S-NPP",
             ts=ts,
         )
         storage.guardar(lectura)
