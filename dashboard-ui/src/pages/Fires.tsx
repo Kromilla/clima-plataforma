@@ -56,28 +56,36 @@ function PanelSinDatos({ data }: { data: RespuestaIncendios }) {
 export default function Fires() {
   const { lugarId, lugares } = useLugar();
   const [dias, setDias] = useState(2);
+  // Vista nacional por defecto (como IDEAM): los incendios suelen estar en zonas
+  // rurales lejos de las capitales, así que "mi ciudad" casi siempre daría 0.
+  const [vista, setVista] = useState<'nacional' | 'ciudad'>('nacional');
 
   const { datos: data, error, cargando, recargar, intentos } = useFetch<RespuestaIncendios>(
-    () => fetchIncendios(lugarId!, dias),
-    [lugarId, dias],
-    { activo: !!lugarId, intervaloMs: 10 * 60_000 },
+    () => (vista === 'nacional' ? fetchIncendios('', dias, true) : fetchIncendios(lugarId!, dias)),
+    [vista, lugarId, dias],
+    { activo: vista === 'nacional' || !!lugarId, intervaloMs: 10 * 60_000 },
   );
 
   const nombreLugar = lugares.find((l) => l.id === lugarId)?.nombre ?? '';
   const focos: Foco[] = data?.focos ?? [];
   const significativos = focos.filter((f) => f.confianza !== 'baja');
   const cercanos = significativos.filter((f) => f.distancia_km <= 20);
+  const intensos = focos.filter((f) => f.frp >= 50).length;
 
   return (
     <div>
       <PageHeader
         titulo="Focos de calor"
-        subtitulo={nombreLugar}
+        subtitulo={vista === 'nacional' ? 'Colombia — todos los focos del país' : nombreLugar}
         acciones={
           <div className="flex items-center gap-2">
-            <span className="text-sm text-muted">Últimos</span>
+            <select value={vista} onChange={(e) => setVista(e.target.value as 'nacional' | 'ciudad')}
+              className="field !w-auto !py-1.5" aria-label="Vista">
+              <option value="nacional">Colombia</option>
+              <option value="ciudad">{nombreLugar ? nombreLugar.split(',')[0] : 'Mi ciudad'}</option>
+            </select>
             <select value={dias} onChange={(e) => setDias(Number(e.target.value))}
-              className="field !w-auto !py-1.5">
+              className="field !w-auto !py-1.5" aria-label="Días">
               <option value={1}>1 día</option>
               <option value={2}>2 días</option>
               <option value={5}>5 días</option>
@@ -90,7 +98,7 @@ export default function Fires() {
         <div className="mb-6"><AvisoBackend error={error} intentos={intentos} onReintentar={recargar} /></div>
       )}
 
-      {cercanos.length > 0 && (
+      {vista === 'ciudad' && cercanos.length > 0 && (
         <div className="card card-pad mb-6 flex items-start gap-3 border-red-300/60 dark:border-red-500/30">
           <Flame className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600 dark:text-red-400" />
           <div className="text-sm">
@@ -111,11 +119,18 @@ export default function Fires() {
       ) : (
         <>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            {[
-              { etiqueta: 'Focos detectados', valor: focos.length, clase: 'text-heading' },
-              { etiqueta: 'Confianza nominal o alta', valor: significativos.length, clase: 'text-orange-500' },
-              { etiqueta: 'A menos de 20 km', valor: cercanos.length, clase: cercanos.length ? 'text-red-500' : 'text-heading' },
-            ].map((s) => (
+            {(vista === 'ciudad'
+              ? [
+                  { etiqueta: 'Focos detectados', valor: focos.length, clase: 'text-heading' },
+                  { etiqueta: 'Confianza nominal o alta', valor: significativos.length, clase: 'text-orange-500' },
+                  { etiqueta: 'A menos de 20 km', valor: cercanos.length, clase: cercanos.length ? 'text-red-500' : 'text-heading' },
+                ]
+              : [
+                  { etiqueta: 'Focos en el país', valor: focos.length, clase: 'text-heading' },
+                  { etiqueta: 'Confianza nominal o alta', valor: significativos.length, clase: 'text-orange-500' },
+                  { etiqueta: 'Alta intensidad (>50 MW)', valor: intensos, clase: intensos ? 'text-red-500' : 'text-heading' },
+                ]
+            ).map((s) => (
               <div key={s.etiqueta} className="card card-pad">
                 <p className="text-sm text-muted">{s.etiqueta}</p>
                 <p className={`mt-1 font-display text-3xl font-bold tabular-nums ${s.clase}`}>{s.valor}</p>
@@ -141,12 +156,13 @@ export default function Fires() {
 
             <div className="h-[26rem] w-full overflow-hidden rounded-xl border border-line">
               {data && (
-                <MapContainer center={[data.centro.lat, data.centro.lon]} zoom={10}
+                <MapContainer key={`${vista}-${data.centro.lat}-${data.centro.lon}`}
+                  center={[data.centro.lat, data.centro.lon]} zoom={vista === 'nacional' ? 5 : 10}
                   className="h-full w-full" scrollWheelZoom>
                   <TileLayer
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                  {data.bbox && (
+                  {vista === 'ciudad' && data.bbox && (
                     <Rectangle
                       bounds={[[data.bbox[1], data.bbox[0]], [data.bbox[3], data.bbox[2]]]}
                       pathOptions={{ color: '#64748b', weight: 1, fillOpacity: 0.03, dashArray: '4' }} />
@@ -174,12 +190,12 @@ export default function Fires() {
 
             {focos.length === 0 && (
               <p className="mt-4 text-center text-sm text-muted">
-                No se detectaron focos en la zona en el periodo seleccionado.
+                No se detectaron focos en el periodo seleccionado.
               </p>
             )}
 
             <p className="mt-4 text-xs leading-relaxed text-muted">
-              Detecciones satelitales de NASA FIRMS (VIIRS S-NPP, 375 m). Un foco es una anomalía
+              Detecciones satelitales de NASA FIRMS (VIIRS S-NPP + NOAA-20/21, 375 m). Un foco es una anomalía
               térmica: puede ser un incendio, una quema agrícola controlada o una fuente industrial.
               No confirma un incendio en tierra.
             </p>

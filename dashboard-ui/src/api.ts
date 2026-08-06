@@ -99,10 +99,11 @@ export interface RespuestaIncendios {
   focos: Foco[];
 }
 
-export function fetchIncendios(lugarId: string, dias = 2) {
-  return getJSON<RespuestaIncendios>(
-    `/api/incendios?lugar_id=${encodeURIComponent(lugarId)}&dias=${dias}`,
-  );
+export function fetchIncendios(lugarId: string, dias = 2, nacional = false) {
+  const q = nacional
+    ? `nacional=true&dias=${dias}`
+    : `lugar_id=${encodeURIComponent(lugarId)}&dias=${dias}`;
+  return getJSON<RespuestaIncendios>(`/api/incendios?${q}`);
 }
 
 // ── Predictor de riesgo (Fase 4) ─────────────────────────────────────────────

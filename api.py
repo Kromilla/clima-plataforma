@@ -21,7 +21,7 @@ import risk
 import storage
 import telegram_handlers
 from config import cfg
-from locations import DEFAULT_LUGAR, LUGARES
+from locations import COLOMBIA, DEFAULT_LUGAR, LUGARES
 from sources import firms
 from sources.base import Lectura
 from sources.registry import FUENTES, por_id
@@ -278,6 +278,7 @@ def estado_fuentes(lugar_id: str = DEFAULT_LUGAR):
 def obtener_incendios(
     lugar_id: str = DEFAULT_LUGAR,
     dias: int = Query(default=2, ge=1, le=10),
+    nacional: bool = False,
 ):
     """
     Focos de calor para el mapa (Fase 3).
@@ -289,10 +290,14 @@ def obtener_incendios(
     responde con `disponible: false` y el motivo, para que el mapa muestre un
     mensaje claro en vez de romperse.
     """
-    _validar_lugar(lugar_id)
-
-    lugar = LUGARES[lugar_id].copy()
-    lugar["_id"] = lugar_id
+    # Vista nacional: cubre todo el país (como IDEAM). Si no, el bbox de la ciudad.
+    if nacional:
+        lugar = COLOMBIA.copy()
+        lugar["_id"] = "colombia"
+    else:
+        _validar_lugar(lugar_id)
+        lugar = LUGARES[lugar_id].copy()
+        lugar["_id"] = lugar_id
 
     try:
         focos = firms.obtener_focos(lugar, dias=dias)

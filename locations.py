@@ -46,3 +46,12 @@ LUGARES = {
 }
 
 DEFAULT_LUGAR = "santa-marta"
+
+# Vista nacional del mapa de incendios (FIRMS): recuadro que cubre todo el país.
+# El centro es el centroide aproximado del bbox, para encuadrar el mapa.
+COLOMBIA = {
+    "nombre": "Colombia",
+    "lat": 4.35,
+    "lon": -72.9,
+    "bbox": (-79.0, -4.3, -66.8, 13.0),
+}
