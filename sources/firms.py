@@ -40,8 +40,10 @@ _BASE_URL = "https://firms.modaps.eosdis.nasa.gov/api/area/csv"
 _FUENTE = "firms"
 _METRICA = "focos_activos"
 _UNIDAD = "focos"
-# VIIRS S-NPP tiene 375 m de resolución: mejor que MODIS (1 km) para focos chicos.
-_SATELITE = "VIIRS_SNPP_NRT"
+# VIIRS (375 m) de los tres satélites: S-NPP + NOAA-20 + NOAA-21. Cada uno pasa
+# ~2 veces/día, así que juntarlos multiplica la cobertura temporal (usar solo uno
+# se perdía focos que los otros sí veían, como los que muestra el IDEAM).
+_SATELITES = ("VIIRS_SNPP_NRT", "VIIRS_NOAA20_NRT", "VIIRS_NOAA21_NRT")
 _DIAS = 2          # "focos de las últimas 24-48h" (§6, Fase 3)
 _DIAS_MAX = 10     # límite duro de la API
 
@@ -165,6 +167,22 @@ def parsear_csv(texto: str) -> list[Foco]:
     return focos
 
 
+def _fusionar(focos: list[Foco]) -> list[Foco]:
+    """
+    Junta detecciones de varios satélites en un foco por ubicación y día.
+
+    Distintos satélites ven el mismo incendio en pasadas distintas; se colapsan a
+    un punto (~100 m) por día, quedándose con el de mayor FRP (potencia).
+    """
+    por_clave: dict[tuple, Foco] = {}
+    for f in focos:
+        clave = (round(f.lat, 3), round(f.lon, 3), f.ts.strftime("%Y-%m-%d"))
+        previo = por_clave.get(clave)
+        if previo is None or f.frp > previo.frp:
+            por_clave[clave] = f
+    return list(por_clave.values())
+
+
 def obtener_focos(lugar: dict, dias: int = _DIAS) -> list[Foco]:
     """
     Devuelve los focos dentro del bbox del lugar, ordenados por cercanía.
@@ -188,20 +206,29 @@ def obtener_focos(lugar: dict, dias: int = _DIAS) -> list[Foco]:
     if en_cache is not None and (time.monotonic() - en_cache[0]) < _CACHE_TTL_SEG:
         return list(en_cache[1])
 
-    url = f"{_BASE_URL}/{cfg.FIRMS_MAP_KEY}/{_SATELITE}/{area}/{dias}"
+    # Se consulta cada satélite VIIRS y se fusionan. Si uno falla se sigue con los
+    # demás; solo se considera caída si fallan todos.
+    crudos: list[Foco] = []
+    fallos = 0
+    for sat in _SATELITES:
+        url = f"{_BASE_URL}/{cfg.FIRMS_MAP_KEY}/{sat}/{area}/{dias}"
+        try:
+            resp = requests.get(url, timeout=30)
+            resp.raise_for_status()
+        except requests.RequestException as exc:
+            logger.warning("FIRMS %s no respondió: %s", sat, exc)
+            fallos += 1
+            continue
+        texto = resp.text.strip()
+        # FIRMS devuelve 200 con un mensaje de error en texto plano si la key es mala.
+        if texto.lower().startswith("invalid"):
+            raise FirmsSinClave(f"FIRMS rechazó la MAP_KEY: {texto[:100]}")
+        crudos.extend(parsear_csv(texto))
 
-    try:
-        resp = requests.get(url, timeout=30)
-        resp.raise_for_status()
-    except requests.RequestException as exc:
-        raise FirmsSinDatos(f"FIRMS no respondió: {exc}") from exc
+    if fallos == len(_SATELITES):
+        raise FirmsSinDatos("FIRMS no respondió (ningún satélite disponible)")
 
-    texto = resp.text.strip()
-    # FIRMS devuelve 200 con un mensaje de error en texto plano si la key es mala.
-    if texto.lower().startswith("invalid"):
-        raise FirmsSinClave(f"FIRMS rechazó la MAP_KEY: {texto[:100]}")
-
-    focos = parsear_csv(texto)
+    focos = _fusionar(crudos)
 
     centro_lat, centro_lon = lugar["lat"], lugar["lon"]
     focos = [
@@ -238,7 +265,7 @@ def obtener_ultimo(lugar: dict) -> Lectura:
             fuente=_FUENTE,
             procedencia="local",
             lugar_id=lugar_id,
-            estacion_nombre=f"NASA FIRMS / {_SATELITE}",
+            estacion_nombre="NASA FIRMS / VIIRS (S-NPP + NOAA-20/21)",
             ts=ts,
         )
         storage.guardar(lectura)
