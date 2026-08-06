@@ -79,11 +79,20 @@ export default function Fires() {
         subtitulo={vista === 'nacional' ? 'Colombia — todos los focos del país' : nombreLugar}
         acciones={
           <div className="flex items-center gap-2">
-            <select value={vista} onChange={(e) => setVista(e.target.value as 'nacional' | 'ciudad')}
-              className="field !w-auto !py-1.5" aria-label="Vista">
-              <option value="nacional">Colombia</option>
-              <option value="ciudad">{nombreLugar ? nombreLugar.split(',')[0] : 'Mi ciudad'}</option>
-            </select>
+            {/* Toggle nacional/ciudad. La ciudad se elige con el selector de arriba;
+                aquí solo se alterna entre todo el país y esa ciudad filtrada. */}
+            <button
+              type="button"
+              onClick={() => setVista((v) => (v === 'nacional' ? 'ciudad' : 'nacional'))}
+              aria-pressed={vista === 'nacional'}
+              className={`field !w-auto !py-1.5 cursor-pointer transition-colors ${
+                vista === 'nacional'
+                  ? 'border-brand/50 text-brand-strong dark:text-brand'
+                  : 'text-muted hover:text-heading'
+              }`}
+            >
+              🇨🇴 Todo Colombia
+            </button>
             <select value={dias} onChange={(e) => setDias(Number(e.target.value))}
               className="field !w-auto !py-1.5" aria-label="Días">
               <option value={1}>1 día</option>
