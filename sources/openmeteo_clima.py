@@ -96,7 +96,7 @@ def obtener_ultimo(lugar: dict) -> Lectura:
                 # UTC a propósito: ver nota en openmeteo_aire.py.
                 "timezone": "UTC",
             },
-            timeout=15,
+            timeout=8,
         )
         resp.raise_for_status()
         data = resp.json()

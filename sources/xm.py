@@ -21,6 +21,7 @@ honestamente en vez de fingir que es un dato en tiempo real.
 from __future__ import annotations
 
 import logging
+import time
 from datetime import date, datetime, timedelta, timezone
 
 import requests
@@ -38,6 +39,11 @@ _FUENTE = "xm"
 _DIAS_VENTANA = 7
 # Colombia = UTC-5, sin horario de verano.
 _TZ_COLOMBIA = timezone(timedelta(hours=-5))
+
+# La serie es NACIONAL (idéntica para todas las ciudades): se cachea por pasada
+# para no repetir el POST 14 veces (una por ciudad) en el collector.
+_CACHE_SERIE: tuple[float, list[tuple[datetime, float]]] | None = None
+_CACHE_TTL_SEG = 900
 
 
 class XMSinDatos(Exception):
@@ -96,6 +102,38 @@ def _ultima_hora_disponible(items: list[dict]) -> tuple[datetime, float] | None:
     return serie[-1] if serie else None
 
 
+def _serie_nacional() -> list[tuple[datetime, float]]:
+    """
+    Serie horaria de intensidad de carbono del sistema nacional, cacheada por
+    pasada. XM reporta a nivel país, así que las 14 ciudades comparten el dato;
+    sin caché se repetiría el mismo POST 14 veces por pasada del collector.
+    """
+    global _CACHE_SERIE
+    ahora = time.monotonic()
+    if _CACHE_SERIE is not None and (ahora - _CACHE_SERIE[0]) < _CACHE_TTL_SEG:
+        return _CACHE_SERIE[1]
+
+    hoy = datetime.now(_TZ_COLOMBIA).date()
+    inicio = hoy - timedelta(days=_DIAS_VENTANA)
+    resp = requests.post(
+        _URL,
+        json={
+            "MetricId": "factorEmisionCO2e",
+            "StartDate": inicio.isoformat(),
+            "EndDate": hoy.isoformat(),
+            "Entity": "Sistema",
+        },
+        timeout=8,
+    )
+    resp.raise_for_status()
+    items = resp.json().get("Items") or []
+    serie = _parsear_serie(items)
+    if not serie:
+        raise XMSinDatos("XM respondió sin horas con dato en la ventana pedida")
+    _CACHE_SERIE = (ahora, serie)
+    return serie
+
+
 def obtener_ultimo(lugar: dict) -> Lectura:
     """
     Retorna la intensidad de carbono más reciente de la red eléctrica colombiana.
@@ -109,26 +147,8 @@ def obtener_ultimo(lugar: dict) -> Lectura:
     """
     lugar_id = lugar.get("_id", "desconocido")
 
-    hoy = datetime.now(_TZ_COLOMBIA).date()
-    inicio = hoy - timedelta(days=_DIAS_VENTANA)
-
     try:
-        resp = requests.post(
-            _URL,
-            json={
-                "MetricId": "factorEmisionCO2e",
-                "StartDate": inicio.isoformat(),
-                "EndDate": hoy.isoformat(),
-                "Entity": "Sistema",
-            },
-            timeout=20,
-        )
-        resp.raise_for_status()
-        items = resp.json().get("Items") or []
-
-        serie = _parsear_serie(items)
-        if not serie:
-            raise XMSinDatos("XM respondió sin horas con dato en la ventana pedida")
+        serie = _serie_nacional()
 
         # Se guarda la serie completa, no solo el último punto: el índice único
         # ignora lo ya conocido, así que repetirlo es barato y la gráfica tiene

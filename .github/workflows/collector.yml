@@ -15,9 +15,9 @@ concurrency:
 jobs:
   collect:
     runs-on: ubuntu-latest
-    # Red de seguridad: una pasada sana tarda ~5 min. Si FIRMS se cuelga, que lo
-    # mate limpio en vez de dejarlo 20-30 min (o que lo maten sin log).
-    timeout-minutes: 12
+    # Red de seguridad: una pasada sana tarda ~2-3 min. Con timeouts cortos el
+    # peor caso queda bajo esto; si algo se cuelga, que lo mate limpio.
+    timeout-minutes: 10
     # Los secrets están en el entorno "Actions" (no como repository secrets).
     environment: Actions
     steps:

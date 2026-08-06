@@ -108,7 +108,7 @@ def obtener_ultimo(lugar: dict) -> Lectura:
                 # 5 h más viejo de lo que es.
                 "timezone": "UTC",
             },
-            timeout=15,
+            timeout=8,
         )
         resp.raise_for_status()
         data = resp.json()

@@ -214,7 +214,7 @@ def obtener_focos(lugar: dict, dias: int = _DIAS, sensores: tuple = _SATELITES) 
     for sat in sensores:
         url = f"{_BASE_URL}/{cfg.FIRMS_MAP_KEY}/{sat}/{area}/{dias}"
         try:
-            resp = requests.get(url, timeout=12)
+            resp = requests.get(url, timeout=8)
             resp.raise_for_status()
         except requests.RequestException as exc:
             logger.warning("FIRMS %s no respondió: %s", sat, exc)

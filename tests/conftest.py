@@ -27,9 +27,12 @@ os.environ.setdefault("TELEGRAM_CHAT_ID", "0")
 
 
 @pytest.fixture(autouse=True)
-def _limpiar_cache_firms():
-    """El cache de focos de firms es estado de módulo; limpiarlo aísla los tests."""
+def _limpiar_caches_modulo():
+    """Los caches de módulo (firms, xm) se limpian para aislar cada test."""
     import sources.firms as firms
+    import sources.xm as xm
     firms._CACHE_FOCOS.clear()
+    xm._CACHE_SERIE = None
     yield
     firms._CACHE_FOCOS.clear()
+    xm._CACHE_SERIE = None
