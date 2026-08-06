@@ -1,8 +1,8 @@
 <div align="center">
 
-# 🌤️ ClimaBot · Santa Marta
+# 🌤️ ClimaBot · Colombia
 
-**Environmental monitoring platform for Santa Marta, Colombia.**  
+**Environmental monitoring platform for Colombia — 14 departmental capitals.**  
 Air quality · Weather · Energy · Wildfires — Telegram alerts + real-time dashboard, all on open data.
 
 [![CI](https://github.com/Kromilla/clima-plataforma/actions/workflows/ci.yml/badge.svg)](https://github.com/Kromilla/clima-plataforma/actions/workflows/ci.yml)
@@ -10,7 +10,7 @@ Air quality · Weather · Energy · Wildfires — Telegram alerts + real-time da
 [![Contributing](https://img.shields.io/badge/Contributing-guide-7c3aed.svg)](CONTRIBUTING.md)
 ![Python](https://img.shields.io/badge/Python-3.11+-3776ab.svg)
 ![React](https://img.shields.io/badge/React-19-61dafb.svg)
-![Tests](https://img.shields.io/badge/tests-98%20passing-22c55e.svg)
+![Tests](https://img.shields.io/badge/tests-120%20passing-22c55e.svg)
 
 **🌐 Language / Idioma:** [English](#english) · [Español](#español)
 
@@ -28,7 +28,8 @@ Air quality · Weather · Energy · Wildfires — Telegram alerts + real-time da
 - ⚡ **Energy** — carbon intensity of the Colombian electricity grid (XM).
 - 🔥 **Wildfires** — satellite heat map (NASA FIRMS) with proximity alerts.
 - 🌡️ **Heat Risk** — experimental extreme heat predictor powered by scikit-learn.
-- 🤖 **Telegram Bot** — PM2.5 alerts and on-demand `/estado` command.
+- 🤖 **Telegram Bot** — proactive PM2.5 and wildfire alerts + on-demand `/estado` (webhook mode).
+- 🏙️ **14 cities** — Colombia's departmental capitals, switchable from the dashboard (default: Santa Marta).
 - 🌗 **Dashboard** — React with light/dark mode, auto-reconnects if the backend goes down.
 
 > **No air, weather, or energy source requires an API key.** The project runs end-to-end with only a Telegram token.
@@ -119,13 +120,14 @@ npm run dev --prefix dashboard-ui
 
 ### Deployment
 
-Free, no credit card: **Vercel** (dashboard) + **Render** (API + collector cron)
-+ **Supabase** (Postgres). `storage.py` switches from SQLite to Postgres via a
-single env var (`DATABASE_URL`) — thanks to the single-data-gateway design.
-Step-by-step in **[`deploy/DEPLOY.md`](deploy/DEPLOY.md)**.
+Free, no credit card: **Vercel** (dashboard) + **Render** (API + Telegram webhook)
++ **Supabase** (Postgres) + **GitHub Actions** (scheduled collector + keep-warm).
+`storage.py` switches from SQLite to Postgres via a single env var (`DATABASE_URL`)
+— thanks to the single-data-gateway design. The bot answers via **webhook** on the
+same Render service (no 24/7 worker needed). Step-by-step in **[`deploy/DEPLOY.md`](deploy/DEPLOY.md)**.
 
-Prefer a single always-on VM (also runs the bot 24/7)? See the Oracle Cloud Free
-alternative in [`deploy/DEPLOY_oracle.md`](deploy/DEPLOY_oracle.md).
+Prefer a single always-on VM? See the Oracle Cloud Free alternative in
+[`deploy/DEPLOY_oracle.md`](deploy/DEPLOY_oracle.md).
 
 ---
 
@@ -252,7 +254,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide — how to set up the 
 - ⚡ **Energía** — intensidad de carbono de la red eléctrica colombiana (XM).
 - 🔥 **Incendios** — mapa de focos de calor por satélite (NASA FIRMS) con alerta por cercanía.
 - 🌡️ **Riesgo de calor** — predictor experimental de calor extremo con scikit-learn.
-- 🤖 **Bot de Telegram** — alertas de PM2.5 y comando `/estado` bajo demanda.
+- 🤖 **Bot de Telegram** — alertas proactivas de PM2.5 e incendios + comando `/estado` (modo webhook).
+- 🏙️ **14 ciudades** — capitales departamentales de Colombia, cambiables desde el dashboard (default: Santa Marta).
 - 🌗 **Dashboard** — React + modo claro/oscuro, se reconecta solo si el backend cae.
 
 > **Ninguna de las fuentes de aire, clima o energía requiere API key.** El proyecto corre de punta a punta solo con un token de Telegram.
