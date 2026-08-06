@@ -54,7 +54,7 @@ function PanelSinDatos({ data }: { data: RespuestaIncendios }) {
 }
 
 export default function Fires() {
-  const { lugarId, lugares } = useLugar();
+  const { lugarId, lugares, setLugarId } = useLugar();
   const [dias, setDias] = useState(2);
   // Vista nacional por defecto (como IDEAM): los incendios suelen estar en zonas
   // rurales lejos de las capitales, así que "mi ciudad" casi siempre daría 0.
@@ -79,20 +79,28 @@ export default function Fires() {
         subtitulo={vista === 'nacional' ? 'Colombia — todos los focos del país' : nombreLugar}
         acciones={
           <div className="flex items-center gap-2">
-            {/* Toggle nacional/ciudad. La ciudad se elige con el selector de arriba;
-                aquí solo se alterna entre todo el país y esa ciudad filtrada. */}
-            <button
-              type="button"
-              onClick={() => setVista((v) => (v === 'nacional' ? 'ciudad' : 'nacional'))}
-              aria-pressed={vista === 'nacional'}
-              className={`field !w-auto !py-1.5 cursor-pointer transition-colors ${
-                vista === 'nacional'
-                  ? 'border-brand/50 text-brand-strong dark:text-brand'
-                  : 'text-muted hover:text-heading'
-              }`}
+            {/* Único selector de esta pestaña: Colombia (nacional) + las ciudades.
+                Elegir ciudad también fija el lugar global; "Colombia" solo cambia
+                esta vista (las otras pestañas son por punto, no aplican a nivel país). */}
+            <select
+              value={vista === 'nacional' ? 'colombia' : (lugarId ?? '')}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === 'colombia') {
+                  setVista('nacional');
+                } else {
+                  setVista('ciudad');
+                  setLugarId(v);
+                }
+              }}
+              className="field !w-auto !py-1.5"
+              aria-label="Lugar"
             >
-              🇨🇴 Todo Colombia
-            </button>
+              <option value="colombia">🇨🇴 Colombia</option>
+              {lugares.map((l) => (
+                <option key={l.id} value={l.id}>{l.nombre.split(',')[0]}</option>
+              ))}
+            </select>
             <select value={dias} onChange={(e) => setDias(Number(e.target.value))}
               className="field !w-auto !py-1.5" aria-label="Días">
               <option value={1}>1 día</option>

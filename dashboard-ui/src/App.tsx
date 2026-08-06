@@ -184,7 +184,8 @@ function Layout({ children }: { children: ReactNode }) {
           <button className="grid h-11 w-11 place-items-center text-muted lg:hidden" onClick={() => setMenu(true)} aria-label="Abrir menú">
             <Menu className="h-5 w-5" />
           </button>
-          <SelectorLugar />
+          {/* Incendios trae su propio selector (incluye "Colombia"); evita duplicar. */}
+          {pathname !== '/incendios' && <SelectorLugar />}
           <div className="hidden min-w-0 flex-1 sm:block">
             <SemaforoFuentes />
           </div>
