@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import {
   Sun, Moon, Cloud, CloudSun, CloudFog, CloudDrizzle, CloudRain,
   CloudSnow, CloudRainWind, CloudLightning, Wind, Droplets, Gauge,
+  MapPin, LocateFixed, Loader2,
   type LucideIcon,
 } from 'lucide-react';
-import { fetchClimaActual, type ClimaActual } from '../api';
+import { fetchClimaActual, fetchClimaPorCoords, type ClimaActual } from '../api';
 import { useLugar } from '../LugarContext';
 import { useFetch } from '../useFetch';
 import AvisoBackend from '../components/AvisoBackend';
@@ -33,13 +35,44 @@ function rumbo(deg: number | undefined): string {
 export default function Clima() {
   const { lugarId, lugares } = useLugar();
 
+  // Modo GPS: cuando el usuario da permiso, se consulta su punto exacto en vez
+  // de la ciudad del selector. `null` = seguimos la ciudad elegida.
+  const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
+  const [gpsCargando, setGpsCargando] = useState(false);
+  const [gpsError, setGpsError] = useState<string | null>(null);
+
   const { datos: c, error, cargando, recargar, intentos } = useFetch<ClimaActual>(
-    () => fetchClimaActual(lugarId!),
-    [lugarId],
-    { activo: !!lugarId, intervaloMs: 5 * 60_000 },
+    () => (coords ? fetchClimaPorCoords(coords.lat, coords.lon) : fetchClimaActual(lugarId!)),
+    [coords?.lat, coords?.lon, lugarId],
+    { activo: coords != null || !!lugarId, intervaloMs: 5 * 60_000 },
   );
 
-  const nombreLugar = lugares.find((l) => l.id === lugarId)?.nombre ?? '';
+  function ubicarme() {
+    if (!('geolocation' in navigator)) {
+      setGpsError('Tu navegador no permite geolocalización.');
+      return;
+    }
+    setGpsCargando(true);
+    setGpsError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+        setGpsCargando(false);
+      },
+      (err) => {
+        setGpsError(
+          err.code === err.PERMISSION_DENIED
+            ? 'Permiso de ubicación denegado. Elige una ciudad arriba.'
+            : 'No pudimos obtener tu ubicación.',
+        );
+        setGpsCargando(false);
+      },
+      { enableHighAccuracy: false, timeout: 10_000, maximumAge: 300_000 },
+    );
+  }
+
+  const nombreCiudad = lugares.find((l) => l.id === lugarId)?.nombre ?? '';
+  const nombreLugar = coords ? (c?.etiqueta ?? 'Tu ubicación') : nombreCiudad;
   const { Icono, texto } = condicion(c?.codigo, c?.es_dia ?? true);
 
   const tiles = c && c.disponible ? [
@@ -53,6 +86,33 @@ export default function Clima() {
   return (
     <div>
       <PageHeader titulo="Clima en tiempo real" subtitulo={nombreLugar} />
+
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <button
+          onClick={ubicarme}
+          disabled={gpsCargando}
+          className="flex min-h-[44px] items-center gap-2 rounded-xl border border-line px-4 text-sm
+                     font-medium text-body transition-colors hover:bg-surface-soft disabled:opacity-60"
+        >
+          {gpsCargando
+            ? <Loader2 className="h-4 w-4 animate-spin" />
+            : <LocateFixed className="h-4 w-4 text-brand" />}
+          {coords ? 'Actualizar mi ubicación' : 'Usar mi ubicación'}
+        </button>
+        {coords && (
+          <button
+            onClick={() => { setCoords(null); setGpsError(null); }}
+            className="flex min-h-[44px] items-center gap-2 rounded-xl px-3 text-sm text-muted
+                       transition-colors hover:text-heading"
+          >
+            <MapPin className="h-4 w-4" /> Volver a {nombreCiudad.split(',')[0] || 'ciudad'}
+          </button>
+        )}
+      </div>
+
+      {gpsError && (
+        <p className="mb-4 text-sm text-amber-600 dark:text-amber-400">{gpsError}</p>
+      )}
 
       {error && (
         <div className="mb-6"><AvisoBackend error={error} intentos={intentos} onReintentar={recargar} /></div>

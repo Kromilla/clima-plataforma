@@ -231,24 +231,38 @@ def obtener_historial(
 
 
 @app.get("/api/clima/ahora")
-def obtener_clima_ahora(lugar_id: str = DEFAULT_LUGAR):
+def obtener_clima_ahora(
+    lugar_id: str = DEFAULT_LUGAR,
+    lat: float | None = None,
+    lon: float | None = None,
+):
     """
     Condiciones meteorológicas actuales en vivo (para la pestaña de clima en
     tiempo real). A diferencia de /api/clima/actual (que lee de storage), esto
     consulta Open-Meteo en el momento. Nunca devuelve 500: si falla, responde
     `disponible: false` con el motivo.
-    """
-    _validar_lugar(lugar_id)
 
-    lugar = LUGARES[lugar_id].copy()
-    lugar["_id"] = lugar_id
+    Si llegan `lat`/`lon` (geolocalización del navegador), se consulta ese punto
+    exacto en vez de una ciudad de la lista — así la pestaña sirve estés donde
+    estés, no solo en las 14 capitales monitoreadas.
+    """
+    if lat is not None and lon is not None:
+        if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+            raise HTTPException(status_code=400, detail="Coordenadas fuera de rango")
+        lugar = {"lat": lat, "lon": lon, "nombre": "Tu ubicación", "_id": "gps"}
+        etiqueta = "Tu ubicación"
+    else:
+        _validar_lugar(lugar_id)
+        lugar = LUGARES[lugar_id].copy()
+        lugar["_id"] = lugar_id
+        etiqueta = lugar["nombre"]
 
     try:
         datos = openmeteo_clima.condiciones_actuales(lugar)
     except openmeteo_clima.ClimaActualError as exc:
         return {"disponible": False, "mensaje": str(exc)}
 
-    return {"disponible": True, "lugar_id": lugar_id, **datos}
+    return {"disponible": True, "lugar_id": lugar_id, "etiqueta": etiqueta, **datos}
 
 
 @app.get("/api/estado/fuentes")
