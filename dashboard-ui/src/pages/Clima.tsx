@@ -5,7 +5,7 @@ import {
   MapPin, LocateFixed, Loader2,
   type LucideIcon,
 } from 'lucide-react';
-import { fetchClimaActual, fetchClimaPorCoords, type ClimaActual } from '../api';
+import { fetchClimaActual, fetchClimaPorCoords, fetchNombreUbicacion, type ClimaActual } from '../api';
 import { useLugar } from '../LugarContext';
 import { useFetch } from '../useFetch';
 import AvisoBackend from '../components/AvisoBackend';
@@ -38,6 +38,7 @@ export default function Clima() {
   // Modo GPS: cuando el usuario da permiso, se consulta su punto exacto en vez
   // de la ciudad del selector. `null` = seguimos la ciudad elegida.
   const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
+  const [nombreGps, setNombreGps] = useState<string>('');
   const [gpsCargando, setGpsCargando] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
 
@@ -56,7 +57,10 @@ export default function Clima() {
     setGpsError(null);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+        const { latitude, longitude } = pos.coords;
+        setCoords({ lat: latitude, lon: longitude });
+        setNombreGps('');
+        fetchNombreUbicacion(latitude, longitude).then(setNombreGps);
         setGpsCargando(false);
       },
       (err) => {
@@ -72,7 +76,7 @@ export default function Clima() {
   }
 
   const nombreCiudad = lugares.find((l) => l.id === lugarId)?.nombre ?? '';
-  const nombreLugar = coords ? (c?.etiqueta ?? 'Tu ubicación') : nombreCiudad;
+  const nombreLugar = coords ? (nombreGps || 'Tu ubicación') : nombreCiudad;
   const { Icono, texto } = condicion(c?.codigo, c?.es_dia ?? true);
 
   // Solo se muestran los tiles con dato: el respaldo del collector trae temp+
@@ -103,7 +107,7 @@ export default function Clima() {
         </button>
         {coords && (
           <button
-            onClick={() => { setCoords(null); setGpsError(null); }}
+            onClick={() => { setCoords(null); setNombreGps(''); setGpsError(null); }}
             className="flex min-h-[44px] items-center gap-2 rounded-xl px-3 text-sm text-muted
                        transition-colors hover:text-heading"
           >

@@ -138,6 +138,26 @@ export function fetchClimaPorCoords(lat: number, lon: number) {
   return getJSON<ClimaActual>(`/api/clima/ahora?lat=${lat}&lon=${lon}`);
 }
 
+/**
+ * Nombre legible de un punto (geocoding inverso), ej. "Santa Marta, Colombia".
+ * Usa BigDataCloud (sin API key, pensado para el navegador): no pasa por el
+ * backend, así no gasta la cuota de la IP de Render. Devuelve '' si falla.
+ */
+export async function fetchNombreUbicacion(lat: number, lon: number): Promise<string> {
+  try {
+    const res = await fetch(
+      `https://api.bigdatacloud.net/data/reverse-geocode-client` +
+        `?latitude=${lat}&longitude=${lon}&localityLanguage=es`,
+    );
+    if (!res.ok) return '';
+    const d = await res.json();
+    const ciudad = d.city || d.locality || d.principalSubdivision || '';
+    return [ciudad, d.countryName].filter(Boolean).join(', ');
+  } catch {
+    return '';
+  }
+}
+
 // ── Predictor de riesgo (Fase 4) ─────────────────────────────────────────────
 
 export interface Riesgo {
