@@ -113,6 +113,8 @@ export interface ClimaActual {
   /** true = dato del collector (respaldo), no en vivo; trae menos campos. */
   cacheado?: boolean;
   antiguedad_min?: number;
+  /** Fuente en vivo que respondió: "Open-Meteo" o "MET Norway". */
+  origen?: string;
   ts?: string;
   temperatura?: number;
   sensacion?: number;

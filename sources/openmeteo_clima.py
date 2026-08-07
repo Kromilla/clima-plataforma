@@ -143,19 +143,37 @@ _CACHE_TTL_SEG = 120
 
 def condiciones_actuales(lugar: dict) -> dict:
     """
-    Condiciones meteorológicas actuales (en vivo) de Open-Meteo, para la vista de
-    clima en tiempo real. No se persiste: es una foto del momento.
+    Condiciones meteorológicas actuales (en vivo), para la vista de clima en
+    tiempo real. No se persiste: es una foto del momento.
 
-    Cachea por punto durante _CACHE_TTL_SEG para respetar el límite de Open-Meteo.
+    Estrategia de dos fuentes: primero Open-Meteo; si falla (típico: 429 porque
+    la IP de Render comparte cuota con otros clientes de Render), cae a MET
+    Norway (api.met.no), que es gratis, sin API key y con otra cuota — así el
+    clima en vivo sigue mostrando TODOS los campos aunque Open-Meteo esté
+    saturado. Cachea por punto durante _CACHE_TTL_SEG.
 
     Raises:
-        ClimaActualError: si la API falla o no trae el bloque `current`.
+        ClimaActualError: si ambas fuentes fallan.
     """
     clave = (round(lugar["lat"], 2), round(lugar["lon"], 2))
     cacheado = _CACHE_ACTUAL.get(clave)
     if cacheado and time.monotonic() - cacheado[0] < _CACHE_TTL_SEG:
         return cacheado[1]
 
+    try:
+        datos = _via_openmeteo(lugar)
+    except ClimaActualError as exc_om:
+        try:
+            datos = _via_metno(lugar)
+        except ClimaActualError:
+            raise exc_om  # se reporta el motivo de la fuente primaria
+
+    _CACHE_ACTUAL[clave] = (time.monotonic(), datos)
+    return datos
+
+
+def _via_openmeteo(lugar: dict) -> dict:
+    """Condiciones actuales desde Open-Meteo. Fuente primaria."""
     try:
         resp = requests.get(
             _BASE_URL,
@@ -182,7 +200,8 @@ def condiciones_actuales(lugar: dict) -> dict:
     if actual.get("temperature_2m") is None:
         raise ClimaActualError("Open-Meteo respondió sin condiciones actuales")
 
-    datos = {
+    return {
+        "origen": "Open-Meteo",
         "ts": actual.get("time"),
         "temperatura": actual.get("temperature_2m"),
         "sensacion": actual.get("apparent_temperature"),
@@ -196,5 +215,65 @@ def condiciones_actuales(lugar: dict) -> dict:
         "presion": actual.get("surface_pressure"),
         "es_dia": bool(actual.get("is_day")),
     }
-    _CACHE_ACTUAL[clave] = (time.monotonic(), datos)
-    return datos
+
+
+_METNO_URL = "https://api.met.no/weatherapi/locationforecast/2.0/compact"
+# api.met.no exige un User-Agent identificable (si no, responde 403).
+_METNO_UA = "ClimaBot/1.0 (github.com/Kromilla/clima-plataforma)"
+
+# symbol_code de MET Norway → código WMO aproximado (para reusar el mismo mapeo
+# de íconos del frontend). Solo se mira la raíz, sin el sufijo _day/_night.
+_METNO_A_WMO = {
+    "clearsky": 0, "fair": 1, "partlycloudy": 2, "cloudy": 3,
+    "fog": 45, "lightrainshowers": 80, "rainshowers": 80, "heavyrainshowers": 82,
+    "lightrain": 61, "rain": 63, "heavyrain": 65, "lightdrizzle": 51, "drizzle": 53,
+    "lightsleet": 66, "sleet": 67, "heavysleet": 67,
+    "lightsnow": 71, "snow": 73, "heavysnow": 75, "snowshowers": 85,
+    "lightrainandthunder": 95, "rainandthunder": 95, "heavyrainandthunder": 95,
+    "thunderstorm": 95,
+}
+
+
+def _via_metno(lugar: dict) -> dict:
+    """Condiciones actuales desde MET Norway. Respaldo en vivo de Open-Meteo."""
+    try:
+        resp = requests.get(
+            _METNO_URL,
+            params={"lat": round(lugar["lat"], 4), "lon": round(lugar["lon"], 4)},
+            headers={"User-Agent": _METNO_UA},
+            timeout=8,
+        )
+        resp.raise_for_status()
+    except requests.RequestException as exc:
+        raise ClimaActualError(f"MET Norway no respondió: {exc}") from exc
+
+    series = ((resp.json() or {}).get("properties") or {}).get("timeseries") or []
+    if not series:
+        raise ClimaActualError("MET Norway respondió sin datos")
+
+    punto = series[0]
+    detalles = ((punto.get("data") or {}).get("instant") or {}).get("details") or {}
+    if detalles.get("air_temperature") is None:
+        raise ClimaActualError("MET Norway respondió sin temperatura")
+
+    prox = (punto.get("data") or {}).get("next_1_hours") or {}
+    simbolo = ((prox.get("summary") or {}).get("symbol_code") or "").split("_")
+    raiz = simbolo[0] if simbolo else ""
+    es_dia = simbolo[1] == "day" if len(simbolo) > 1 else True
+    viento_ms = detalles.get("wind_speed")
+
+    return {
+        "origen": "MET Norway",
+        "ts": punto.get("time", "").rstrip("Z").rstrip(),
+        "temperatura": detalles.get("air_temperature"),
+        "sensacion": None,  # met.no compact no da sensación térmica
+        "humedad": detalles.get("relative_humidity"),
+        "precipitacion": (prox.get("details") or {}).get("precipitation_amount"),
+        "codigo": _METNO_A_WMO.get(raiz),
+        "nubosidad": detalles.get("cloud_area_fraction"),
+        "viento_kmh": round(viento_ms * 3.6, 1) if viento_ms is not None else None,
+        "rachas_kmh": None,  # no viene en el endpoint compact
+        "viento_dir": detalles.get("wind_from_direction"),
+        "presion": detalles.get("air_pressure_at_sea_level"),
+        "es_dia": es_dia,
+    }

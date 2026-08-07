@@ -78,7 +78,7 @@ export default function Clima() {
   // Solo se muestran los tiles con dato: el respaldo del collector trae temp+
   // humedad, no viento/lluvia/presión, y un "0 km/h" inventado engañaría.
   const tiles = c && c.disponible ? [
-    c.viento_kmh != null && { Icono: Wind, etiqueta: 'Viento', valor: `${c.viento_kmh.toFixed(0)} km/h ${rumbo(c.viento_dir)}`, sub: `rachas ${(c.rachas_kmh ?? 0).toFixed(0)} km/h` },
+    c.viento_kmh != null && { Icono: Wind, etiqueta: 'Viento', valor: `${c.viento_kmh.toFixed(0)} km/h ${rumbo(c.viento_dir)}`, sub: c.rachas_kmh != null ? `rachas ${c.rachas_kmh.toFixed(0)} km/h` : '' },
     c.humedad != null && { Icono: Droplets, etiqueta: 'Humedad', valor: `${c.humedad}%`, sub: '' },
     c.precipitacion != null && { Icono: CloudRain, etiqueta: 'Lluvia', valor: `${c.precipitacion.toFixed(1)} mm`, sub: 'última hora' },
     c.nubosidad != null && { Icono: Cloud, etiqueta: 'Nubosidad', valor: `${c.nubosidad}%`, sub: '' },
@@ -171,7 +171,7 @@ export default function Clima() {
               </>
             ) : (
               <>
-                Condiciones actuales de Open-Meteo (modelo global). Se actualizan solas cada 5 minutos.
+                Condiciones actuales de {c.origen ?? 'Open-Meteo'} (modelo global). Se actualizan solas cada 5 minutos.
                 {c.ts && ` · Dato de las ${new Date(`${c.ts}Z`).toLocaleTimeString()}.`}
               </>
             )}
