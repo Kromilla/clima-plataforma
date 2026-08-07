@@ -110,6 +110,9 @@ export interface ClimaActual {
   disponible: boolean;
   mensaje?: string;
   etiqueta?: string;
+  /** true = dato del collector (respaldo), no en vivo; trae menos campos. */
+  cacheado?: boolean;
+  antiguedad_min?: number;
   ts?: string;
   temperatura?: number;
   sensacion?: number;

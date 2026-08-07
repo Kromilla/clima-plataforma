@@ -260,9 +260,31 @@ def obtener_clima_ahora(
     try:
         datos = openmeteo_clima.condiciones_actuales(lugar)
     except openmeteo_clima.ClimaActualError as exc:
+        # Open-Meteo en vivo falló (típico: 429). Para una ciudad monitoreada,
+        # el collector ya guardó temp+humedad recientes: mejor mostrar ese dato
+        # real con su antigüedad que un error. Para un punto GPS arbitrario no
+        # hay historial, así que queda el mensaje.
+        respaldo = _clima_de_respaldo(lugar_id) if lat is None else None
+        if respaldo is not None:
+            return {"disponible": True, "lugar_id": lugar_id, "etiqueta": etiqueta,
+                    "cacheado": True, **respaldo}
         return {"disponible": False, "mensaje": str(exc)}
 
     return {"disponible": True, "lugar_id": lugar_id, "etiqueta": etiqueta, **datos}
+
+
+def _clima_de_respaldo(lugar_id: str) -> dict | None:
+    """Último temp+humedad guardados por el collector, o None si no hay."""
+    temp = storage.ultimo_valor("openmeteo-clima", lugar_id, "temperatura")
+    if temp is None:
+        return None
+    hum = storage.ultimo_valor("openmeteo-clima", lugar_id, "humedad")
+    return {
+        "ts": temp.ts.strftime("%Y-%m-%dT%H:%M"),
+        "temperatura": temp.valor,
+        "humedad": hum.valor if hum is not None else None,
+        "antiguedad_min": temp.antiguedad_min,
+    }
 
 
 @app.get("/api/estado/fuentes")

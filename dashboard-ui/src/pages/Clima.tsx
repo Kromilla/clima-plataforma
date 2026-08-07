@@ -75,13 +75,15 @@ export default function Clima() {
   const nombreLugar = coords ? (c?.etiqueta ?? 'Tu ubicación') : nombreCiudad;
   const { Icono, texto } = condicion(c?.codigo, c?.es_dia ?? true);
 
+  // Solo se muestran los tiles con dato: el respaldo del collector trae temp+
+  // humedad, no viento/lluvia/presión, y un "0 km/h" inventado engañaría.
   const tiles = c && c.disponible ? [
-    { Icono: Wind, etiqueta: 'Viento', valor: `${(c.viento_kmh ?? 0).toFixed(0)} km/h ${rumbo(c.viento_dir)}`, sub: `rachas ${(c.rachas_kmh ?? 0).toFixed(0)} km/h` },
-    { Icono: Droplets, etiqueta: 'Humedad', valor: `${c.humedad ?? '—'}%`, sub: '' },
-    { Icono: CloudRain, etiqueta: 'Lluvia', valor: `${(c.precipitacion ?? 0).toFixed(1)} mm`, sub: 'última hora' },
-    { Icono: Cloud, etiqueta: 'Nubosidad', valor: `${c.nubosidad ?? '—'}%`, sub: '' },
-    { Icono: Gauge, etiqueta: 'Presión', valor: `${(c.presion ?? 0).toFixed(0)} hPa`, sub: '' },
-  ] : [];
+    c.viento_kmh != null && { Icono: Wind, etiqueta: 'Viento', valor: `${c.viento_kmh.toFixed(0)} km/h ${rumbo(c.viento_dir)}`, sub: `rachas ${(c.rachas_kmh ?? 0).toFixed(0)} km/h` },
+    c.humedad != null && { Icono: Droplets, etiqueta: 'Humedad', valor: `${c.humedad}%`, sub: '' },
+    c.precipitacion != null && { Icono: CloudRain, etiqueta: 'Lluvia', valor: `${c.precipitacion.toFixed(1)} mm`, sub: 'última hora' },
+    c.nubosidad != null && { Icono: Cloud, etiqueta: 'Nubosidad', valor: `${c.nubosidad}%`, sub: '' },
+    c.presion != null && { Icono: Gauge, etiqueta: 'Presión', valor: `${c.presion.toFixed(0)} hPa`, sub: '' },
+  ].filter(Boolean) as { Icono: LucideIcon; etiqueta: string; valor: string; sub: string }[] : [];
 
   return (
     <div>
@@ -136,10 +138,15 @@ export default function Clima() {
                 </span>
                 <span className="ml-1 text-2xl text-muted">°C</span>
               </div>
-              <p className="mt-1 text-lg font-medium text-body">{texto}</p>
-              <p className="text-sm text-muted">Sensación {Math.round(c.sensacion ?? 0)} °C</p>
+              {!c.cacheado && <p className="mt-1 text-lg font-medium text-body">{texto}</p>}
+              {c.sensacion != null && (
+                <p className="text-sm text-muted">Sensación {Math.round(c.sensacion)} °C</p>
+              )}
             </div>
-            <Icono className="h-24 w-24 flex-shrink-0 text-brand" strokeWidth={1.5} />
+            {(() => {
+              const HeroIcono = c.cacheado ? Cloud : Icono;
+              return <HeroIcono className="h-24 w-24 flex-shrink-0 text-brand" strokeWidth={1.5} />;
+            })()}
           </div>
 
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -156,8 +163,18 @@ export default function Clima() {
           </div>
 
           <p className="mt-4 text-xs leading-relaxed text-muted">
-            Condiciones actuales de Open-Meteo (modelo global). Se actualizan solas cada 5 minutos.
-            {c.ts && ` · Dato de las ${new Date(`${c.ts}Z`).toLocaleTimeString()}.`}
+            {c.cacheado ? (
+              <>
+                El clima en vivo está saturado (Open-Meteo limita las consultas). Mostramos el
+                último dato del monitor{c.antiguedad_min != null && `, hace ${c.antiguedad_min} min`}.
+                Reintenta en un minuto para ver las condiciones completas.
+              </>
+            ) : (
+              <>
+                Condiciones actuales de Open-Meteo (modelo global). Se actualizan solas cada 5 minutos.
+                {c.ts && ` · Dato de las ${new Date(`${c.ts}Z`).toLocaleTimeString()}.`}
+              </>
+            )}
           </p>
         </>
       ) : null}
