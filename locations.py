@@ -54,4 +54,5 @@ COLOMBIA = {
     "lat": 4.35,
     "lon": -72.9,
     "bbox": (-79.0, -4.3, -66.8, 13.0),
+    "pais": "COL",  # activa el filtro por contorno (excluye países vecinos del bbox)
 }

@@ -183,6 +183,52 @@ def _fusionar(focos: list[Foco]) -> list[Foco]:
     return list(por_clave.values())
 
 
+# Contorno de Colombia (lon, lat), simplificado de un GeoJSON oficial. Se usa para
+# filtrar la vista nacional: FIRMS devuelve un rectángulo que incluye focos de
+# Venezuela, Panamá y Ecuador; con esto solo se muestran los de Colombia.
+_POLIGONO_COLOMBIA = (
+    (-75.373, -0.152), (-75.801, 0.085), (-76.292, 0.416), (-76.576, 0.257),
+    (-77.425, 0.396), (-77.669, 0.826), (-77.855, 0.81), (-78.855, 1.381),
+    (-78.991, 1.691), (-78.618, 1.766), (-78.662, 2.267), (-78.428, 2.63),
+    (-77.932, 2.697), (-77.51, 3.325), (-77.128, 3.85), (-77.496, 4.088),
+    (-77.308, 4.668), (-77.533, 5.583), (-77.319, 5.845), (-77.477, 6.691),
+    (-77.882, 7.224), (-77.753, 7.71), (-77.431, 7.638), (-77.243, 7.935),
+    (-77.475, 8.524), (-77.353, 8.671), (-76.837, 8.639), (-76.086, 9.337),
+    (-75.675, 9.443), (-75.665, 9.774), (-75.48, 10.619), (-74.907, 11.083),
+    (-74.277, 11.102), (-74.197, 11.31), (-73.415, 11.227), (-72.628, 11.732),
+    (-72.238, 11.956), (-71.754, 12.437), (-71.4, 12.376), (-71.137, 12.113),
+    (-71.332, 11.776), (-71.974, 11.609), (-72.228, 11.109), (-72.615, 10.822),
+    (-72.905, 10.45), (-73.028, 9.737), (-73.305, 9.152), (-72.789, 9.085),
+    (-72.66, 8.625), (-72.44, 8.405), (-72.361, 8.003), (-72.48, 7.633),
+    (-72.444, 7.424), (-72.198, 7.34), (-71.96, 6.992), (-70.674, 7.088),
+    (-70.093, 6.96), (-69.389, 6.1), (-68.985, 6.207), (-68.265, 6.153),
+    (-67.695, 6.267), (-67.341, 6.095), (-67.522, 5.557), (-67.745, 5.221),
+    (-67.823, 4.504), (-67.622, 3.839), (-67.338, 3.542), (-67.303, 3.318),
+    (-67.81, 2.821), (-67.447, 2.6), (-67.181, 2.251), (-66.876, 1.253),
+    (-67.065, 1.13), (-67.26, 1.72), (-67.538, 2.037), (-67.869, 1.692),
+    (-69.817, 1.715), (-69.805, 1.089), (-69.219, 0.986), (-69.252, 0.603),
+    (-69.452, 0.706), (-70.016, 0.541), (-70.021, -0.185), (-69.577, -0.55),
+    (-69.42, -1.123), (-69.444, -1.556), (-69.894, -4.298), (-70.394, -3.767),
+    (-70.693, -3.743), (-70.048, -2.725), (-70.813, -2.257), (-71.414, -2.343),
+    (-71.775, -2.17), (-72.326, -2.434), (-73.07, -2.309), (-73.66, -1.26),
+    (-74.122, -1.003), (-74.442, -0.531), (-75.107, -0.057), (-75.373, -0.152),
+)
+
+
+def _dentro_de_colombia(lon: float, lat: float) -> bool:
+    """Point-in-polygon (ray casting) contra el contorno de Colombia."""
+    p = _POLIGONO_COLOMBIA
+    dentro = False
+    j = len(p) - 1
+    for i in range(len(p)):
+        xi, yi = p[i]
+        xj, yj = p[j]
+        if (yi > lat) != (yj > lat) and lon < (xj - xi) * (lat - yi) / (yj - yi) + xi:
+            dentro = not dentro
+        j = i
+    return dentro
+
+
 def obtener_focos(lugar: dict, dias: int = _DIAS, sensores: tuple = _SATELITES) -> list[Foco]:
     """
     Devuelve los focos dentro del bbox del lugar, ordenados por cercanía.
@@ -240,6 +286,10 @@ def obtener_focos(lugar: dict, dias: int = _DIAS, sensores: tuple = _SATELITES) 
         )
         for f in focos
     ]
+    # Vista nacional (lugar con "pais"): descarta focos fuera del contorno de
+    # Colombia — el bbox de FIRMS es un rectángulo que abarca países vecinos.
+    if lugar.get("pais"):
+        focos = [f for f in focos if _dentro_de_colombia(f.lon, f.lat)]
     focos.sort(key=lambda f: f.distancia_km)
     _CACHE_FOCOS[clave] = (time.monotonic(), list(focos))
     return focos
