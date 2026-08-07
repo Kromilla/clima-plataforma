@@ -106,6 +106,27 @@ export function fetchIncendios(lugarId: string, dias = 2, nacional = false) {
   return getJSON<RespuestaIncendios>(`/api/incendios?${q}`);
 }
 
+export interface ClimaActual {
+  disponible: boolean;
+  mensaje?: string;
+  ts?: string;
+  temperatura?: number;
+  sensacion?: number;
+  humedad?: number;
+  precipitacion?: number;
+  codigo?: number;
+  nubosidad?: number;
+  viento_kmh?: number;
+  rachas_kmh?: number;
+  viento_dir?: number;
+  presion?: number;
+  es_dia?: boolean;
+}
+
+export function fetchClimaActual(lugarId: string) {
+  return getJSON<ClimaActual>(`/api/clima/ahora?lugar_id=${encodeURIComponent(lugarId)}`);
+}
+
 // ── Predictor de riesgo (Fase 4) ─────────────────────────────────────────────
 
 export interface Riesgo {

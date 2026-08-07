@@ -1,11 +1,12 @@
 import { lazy, Suspense, useState, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom';
 import {
-  Wind, Zap, Flame, ThermometerSun, Moon, Sun, Menu, X, MapPin,
+  Wind, Zap, Flame, ThermometerSun, Moon, Sun, Menu, X, MapPin, CloudSun,
 } from 'lucide-react';
 // Cada página en su propio chunk: Leaflet (mapa) y Recharts (gráficas) no cargan
 // hasta que se visita su pestaña, aligerando el bundle inicial.
 const AirQuality = lazy(() => import('./pages/AirQuality'));
+const Clima = lazy(() => import('./pages/Clima'));
 const Energy = lazy(() => import('./pages/Energy'));
 const Fires = lazy(() => import('./pages/Fires'));
 const Risk = lazy(() => import('./pages/Risk'));
@@ -26,6 +27,7 @@ const COLOR_SEMAFORO: Record<string, string> = {
 
 const NAVEGACION = [
   { ruta: '/', etiqueta: 'Aire y Clima', icono: Wind },
+  { ruta: '/clima', etiqueta: 'Clima ahora', icono: CloudSun },
   { ruta: '/energia', etiqueta: 'Energía', icono: Zap },
   { ruta: '/incendios', etiqueta: 'Incendios', icono: Flame },
   { ruta: '/riesgo', etiqueta: 'Riesgo de calor', icono: ThermometerSun },
@@ -214,6 +216,7 @@ export default function App() {
           <Suspense fallback={<div className="card card-pad"><div className="skeleton h-48 w-full" /></div>}>
           <Routes>
             <Route path="/" element={<AirQuality />} />
+            <Route path="/clima" element={<Clima />} />
             <Route path="/energia" element={<Energy />} />
             <Route path="/incendios" element={<Fires />} />
             <Route path="/riesgo" element={<Risk />} />

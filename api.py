@@ -22,7 +22,7 @@ import storage
 import telegram_handlers
 from config import cfg
 from locations import COLOMBIA, DEFAULT_LUGAR, LUGARES
-from sources import firms
+from sources import firms, openmeteo_clima
 from sources.base import Lectura
 from sources.registry import FUENTES, por_id
 
@@ -228,6 +228,27 @@ def obtener_historial(
         metrica = registrada.metrica
 
     return [_serializar(h) for h in storage.historial(fuente, lugar_id, metrica, limite)]
+
+
+@app.get("/api/clima/ahora")
+def obtener_clima_ahora(lugar_id: str = DEFAULT_LUGAR):
+    """
+    Condiciones meteorológicas actuales en vivo (para la pestaña de clima en
+    tiempo real). A diferencia de /api/clima/actual (que lee de storage), esto
+    consulta Open-Meteo en el momento. Nunca devuelve 500: si falla, responde
+    `disponible: false` con el motivo.
+    """
+    _validar_lugar(lugar_id)
+
+    lugar = LUGARES[lugar_id].copy()
+    lugar["_id"] = lugar_id
+
+    try:
+        datos = openmeteo_clima.condiciones_actuales(lugar)
+    except openmeteo_clima.ClimaActualError as exc:
+        return {"disponible": False, "mensaje": str(exc)}
+
+    return {"disponible": True, "lugar_id": lugar_id, **datos}
 
 
 @app.get("/api/estado/fuentes")

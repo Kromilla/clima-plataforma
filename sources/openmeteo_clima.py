@@ -120,3 +120,59 @@ def obtener_ultimo(lugar: dict) -> Lectura:
         if lectura_cache:
             return lectura_cache.como_cache()
         raise OpenMeteoClimaError(f"Sin datos de clima para '{lugar_id}'") from exc
+
+
+class ClimaActualError(Exception):
+    pass
+
+
+_CAMPOS_ACTUAL = (
+    "temperature_2m", "apparent_temperature", "relative_humidity_2m",
+    "precipitation", "weather_code", "cloud_cover",
+    "wind_speed_10m", "wind_direction_10m", "wind_gusts_10m",
+    "surface_pressure", "is_day",
+)
+
+
+def condiciones_actuales(lugar: dict) -> dict:
+    """
+    Condiciones meteorológicas actuales (en vivo) de Open-Meteo, para la vista de
+    clima en tiempo real. No se persiste: es una foto del momento.
+
+    Raises:
+        ClimaActualError: si la API falla o no trae el bloque `current`.
+    """
+    try:
+        resp = requests.get(
+            _BASE_URL,
+            params={
+                "latitude": lugar["lat"],
+                "longitude": lugar["lon"],
+                "current": ",".join(_CAMPOS_ACTUAL),
+                "wind_speed_unit": "kmh",
+                "timezone": "UTC",
+            },
+            timeout=8,
+        )
+        resp.raise_for_status()
+    except requests.RequestException as exc:
+        raise ClimaActualError(f"Open-Meteo no respondió: {exc}") from exc
+
+    actual = (resp.json() or {}).get("current") or {}
+    if actual.get("temperature_2m") is None:
+        raise ClimaActualError("Open-Meteo respondió sin condiciones actuales")
+
+    return {
+        "ts": actual.get("time"),
+        "temperatura": actual.get("temperature_2m"),
+        "sensacion": actual.get("apparent_temperature"),
+        "humedad": actual.get("relative_humidity_2m"),
+        "precipitacion": actual.get("precipitation"),
+        "codigo": actual.get("weather_code"),
+        "nubosidad": actual.get("cloud_cover"),
+        "viento_kmh": actual.get("wind_speed_10m"),
+        "rachas_kmh": actual.get("wind_gusts_10m"),
+        "viento_dir": actual.get("wind_direction_10m"),
+        "presion": actual.get("surface_pressure"),
+        "es_dia": bool(actual.get("is_day")),
+    }
