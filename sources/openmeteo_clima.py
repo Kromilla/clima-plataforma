@@ -4,6 +4,7 @@ sources/openmeteo_clima.py — Adaptador para clima básico (Temperatura, Humeda
 from __future__ import annotations
 
 import logging
+import time
 from datetime import datetime, timezone
 import requests
 
@@ -133,15 +134,28 @@ _CAMPOS_ACTUAL = (
     "surface_pressure", "is_day",
 )
 
+# Caché por punto (lat/lon redondeados a ~1 km) para no pegarle a Open-Meteo en
+# cada refresco ni por cada usuario: el clima no cambia en 2 minutos, y el tier
+# gratis devuelve 429 (Too Many Requests) si la IP de Render se pasa de cuota.
+_CACHE_ACTUAL: dict[tuple[float, float], tuple[float, dict]] = {}
+_CACHE_TTL_SEG = 120
+
 
 def condiciones_actuales(lugar: dict) -> dict:
     """
     Condiciones meteorológicas actuales (en vivo) de Open-Meteo, para la vista de
     clima en tiempo real. No se persiste: es una foto del momento.
 
+    Cachea por punto durante _CACHE_TTL_SEG para respetar el límite de Open-Meteo.
+
     Raises:
         ClimaActualError: si la API falla o no trae el bloque `current`.
     """
+    clave = (round(lugar["lat"], 2), round(lugar["lon"], 2))
+    cacheado = _CACHE_ACTUAL.get(clave)
+    if cacheado and time.monotonic() - cacheado[0] < _CACHE_TTL_SEG:
+        return cacheado[1]
+
     try:
         resp = requests.get(
             _BASE_URL,
@@ -155,6 +169,12 @@ def condiciones_actuales(lugar: dict) -> dict:
             timeout=8,
         )
         resp.raise_for_status()
+    except requests.HTTPError as exc:
+        if exc.response is not None and exc.response.status_code == 429:
+            raise ClimaActualError(
+                "Demasiadas consultas a Open-Meteo ahora mismo. Reintenta en un minuto."
+            ) from exc
+        raise ClimaActualError(f"Open-Meteo no respondió: {exc}") from exc
     except requests.RequestException as exc:
         raise ClimaActualError(f"Open-Meteo no respondió: {exc}") from exc
 
@@ -162,7 +182,7 @@ def condiciones_actuales(lugar: dict) -> dict:
     if actual.get("temperature_2m") is None:
         raise ClimaActualError("Open-Meteo respondió sin condiciones actuales")
 
-    return {
+    datos = {
         "ts": actual.get("time"),
         "temperatura": actual.get("temperature_2m"),
         "sensacion": actual.get("apparent_temperature"),
@@ -176,3 +196,5 @@ def condiciones_actuales(lugar: dict) -> dict:
         "presion": actual.get("surface_pressure"),
         "es_dia": bool(actual.get("is_day")),
     }
+    _CACHE_ACTUAL[clave] = (time.monotonic(), datos)
+    return datos
