@@ -137,8 +137,23 @@ _CAMPOS_ACTUAL = (
 # Caché por punto (lat/lon redondeados a ~1 km) para no pegarle a Open-Meteo en
 # cada refresco ni por cada usuario: el clima no cambia en 2 minutos, y el tier
 # gratis devuelve 429 (Too Many Requests) si la IP de Render se pasa de cuota.
+# _CACHE_MAX acota el dict: con GPS los puntos son ilimitados, así que sin tope
+# el caché crecería sin parar (fuga de memoria en el plan free de Render).
 _CACHE_ACTUAL: dict[tuple[float, float], tuple[float, dict]] = {}
 _CACHE_TTL_SEG = 120
+_CACHE_MAX = 256
+
+
+def _guardar_en_cache(clave: tuple[float, float], datos: dict) -> None:
+    """Guarda en el caché acotando su tamaño: purga expiradas y, si sigue lleno,
+    descarta la entrada más antigua (FIFO)."""
+    if len(_CACHE_ACTUAL) >= _CACHE_MAX:
+        ahora = time.monotonic()
+        for k in [k for k, (t, _) in _CACHE_ACTUAL.items() if ahora - t >= _CACHE_TTL_SEG]:
+            del _CACHE_ACTUAL[k]
+        if len(_CACHE_ACTUAL) >= _CACHE_MAX:
+            del _CACHE_ACTUAL[next(iter(_CACHE_ACTUAL))]
+    _CACHE_ACTUAL[clave] = (time.monotonic(), datos)
 
 
 def condiciones_actuales(lugar: dict) -> dict:
@@ -168,7 +183,7 @@ def condiciones_actuales(lugar: dict) -> dict:
         except ClimaActualError:
             raise exc_om  # se reporta el motivo de la fuente primaria
 
-    _CACHE_ACTUAL[clave] = (time.monotonic(), datos)
+    _guardar_en_cache(clave, datos)
     return datos
 
 
@@ -269,7 +284,7 @@ def _via_metno(lugar: dict) -> dict:
         "sensacion": None,  # met.no compact no da sensación térmica
         "humedad": detalles.get("relative_humidity"),
         "precipitacion": (prox.get("details") or {}).get("precipitation_amount"),
-        "codigo": _METNO_A_WMO.get(raiz),
+        "codigo": _METNO_A_WMO.get(raiz, 3),  # símbolo desconocido → nublado, no sol falso
         "nubosidad": detalles.get("cloud_area_fraction"),
         "viento_kmh": round(viento_ms * 3.6, 1) if viento_ms is not None else None,
         "rachas_kmh": None,  # no viene en el endpoint compact
