@@ -88,7 +88,10 @@ python -m venv .venv
 source .venv/bin/activate       # macOS / Linux
 pip install -r requirements.txt
 
-# 2. Environment variables (only Telegram is required)
+# 2. Secret guard (blocks committing keys by accident)
+git config core.hooksPath .githooks
+
+# 3. Environment variables (only Telegram is required)
 cp .env.example .env            # paste your @BotFather token
 python scripts/telegram_chat_id.py           # gets your TELEGRAM_CHAT_ID
 
@@ -314,7 +317,10 @@ python -m venv .venv
 source .venv/bin/activate       # macOS / Linux
 pip install -r requirements.txt
 
-# 2. Variables de entorno (solo Telegram es obligatorio)
+# 2. Guard anti-secretos (bloquea subir claves por accidente)
+git config core.hooksPath .githooks
+
+# 3. Variables de entorno (solo Telegram es obligatorio)
 cp .env.example .env            # pega tu token de @BotFather
 python scripts/telegram_chat_id.py           # obtiene tu TELEGRAM_CHAT_ID
 

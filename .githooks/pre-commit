@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# pre-commit — bloquea subir secretos por accidente.
+#
+# Es la protección REAL contra fugas de claves: no deja que un token o un .env
+# entren al historial de git (una vez subido, rotar es la única salida).
+#
+# Instalar (una vez por clon):
+#   git config core.hooksPath .githooks
+#
+# Saltar en una emergencia justificada:  git commit --no-verify
+
+set -euo pipefail
+
+fallos=0
+
+# 1) Nunca permitir subir el .env real (sí el .env.example).
+if git diff --cached --name-only | grep -qxE '(.*/)?\.env(\..*)?$' \
+   && ! git diff --cached --name-only | grep -qxE '(.*/)?\.env\.example$'; then
+  # Filtra: bloquea .env y .env.local, permite .env.example
+  bloqueados=$(git diff --cached --name-only | grep -E '(.*/)?\.env($|\.)' | grep -vE '\.env\.example$' || true)
+  if [ -n "$bloqueados" ]; then
+    echo "BLOQUEADO: intentas subir un archivo de entorno con secretos:"
+    echo "$bloqueados" | sed 's/^/  - /'
+    echo "  → El .env va en .gitignore. Usa .env.example (sin valores)."
+    fallos=1
+  fi
+fi
+
+# 2) Escanear el contenido staged por patrones de secreto.
+#    Solo líneas AÑADIDAS (no el código existente).
+agregado=$(git diff --cached --no-color -U0 | grep -E '^\+' | grep -vE '^\+\+\+' || true)
+
+# Token de bot de Telegram: 8-10 dígitos : 35 chars.
+if echo "$agregado" | grep -qE '[0-9]{8,10}:[A-Za-z0-9_-]{35}'; then
+  echo "BLOQUEADO: parece un token de bot de Telegram en el diff."
+  fallos=1
+fi
+
+# Asignación de clave/secreto/token/password con valor largo pegado en claro.
+# Ignora placeholders (tu_clave, xxx, <...>, vacío) y lecturas de entorno.
+if echo "$agregado" | grep -iE '(api[_-]?key|secret|token|password|passwd)[[:space:]]*[:=][[:space:]]*["'\'']?[A-Za-z0-9/+_-]{16,}' \
+   | grep -qivE 'os\.environ|getenv|process\.env|import\.meta\.env|example|placeholder|tu_clave|xxxx|<[^>]+>|redacted|changeme'; then
+  echo "BLOQUEADO: parece una clave/secreto en claro en el diff."
+  echo "  → Muévelo a una variable de entorno (.env, secret de GitHub, env de Render)."
+  fallos=1
+fi
+
+if [ "$fallos" -ne 0 ]; then
+  echo ""
+  echo "Commit abortado por el guard de secretos. Si es un falso positivo:"
+  echo "  git commit --no-verify"
+  exit 1
+fi
+
+exit 0
