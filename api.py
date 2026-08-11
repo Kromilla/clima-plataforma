@@ -82,8 +82,12 @@ app = FastAPI(title="ClimaBot API", lifespan=lifespan)
 
 # Dashboard (Vercel) y API (Render) viven en dominios distintos → hace falta CORS.
 # credentials=False porque la app no usa cookies (y con credenciales el "*" sería
-# inválido). Restringir con CORS_ORIGINS="https://tu-app.vercel.app".
-_origenes = os.environ.get("CORS_ORIGINS", "*").split(",")
+# inválido). Por defecto solo se permite el dashboard de producción; en local el
+# proxy de Vite sirve el front desde el mismo origen, así que no necesita CORS.
+# Para otro dominio (preview de Vercel, etc.) se define CORS_ORIGINS separado por
+# comas, o CORS_ORIGINS="*" para abrir del todo.
+_DEFAULT_ORIGENES = "https://clima-plataforma.vercel.app"
+_origenes = os.environ.get("CORS_ORIGINS", _DEFAULT_ORIGENES).split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in _origenes],
