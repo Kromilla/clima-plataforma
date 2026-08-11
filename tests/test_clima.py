@@ -9,9 +9,12 @@ Cubre las fallas que se arreglaron tras la revisión de salud:
 """
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 import requests
 
 from sources import openmeteo_clima as clima
+from sources.base import Lectura
 
 
 def test_cache_no_crece_sin_limite():
@@ -128,3 +131,85 @@ def test_condiciones_actuales_reporta_error_de_openmeteo_si_ambas_fallan(monkeyp
         assert False, "debió lanzar ClimaActualError"
     except clima.ClimaActualError as exc:
         assert "Open-Meteo" in str(exc)  # se reporta el motivo de la fuente primaria
+
+
+# ── Integración del endpoint /api/clima/ahora ────────────────────────────────
+
+def _cliente():
+    from fastapi.testclient import TestClient
+
+    from api import app
+    return TestClient(app)
+
+
+def _lectura(metrica: str, valor: float, edad_min: int) -> Lectura:
+    ts = datetime.now(timezone.utc) - timedelta(minutes=edad_min)
+    return Lectura(
+        valor=valor, unidad="", metrica=metrica, fuente="openmeteo-clima",
+        procedencia="local", lugar_id="santa-marta", ts=ts,
+    )
+
+
+def test_endpoint_gps_valido(monkeypatch):
+    import api
+    monkeypatch.setattr(
+        api.openmeteo_clima, "condiciones_actuales",
+        lambda lugar: {"origen": "Open-Meteo", "temperatura": 27.0, "es_dia": True},
+    )
+    resp = _cliente().get("/api/clima/ahora?lat=4.6&lon=-74.08")
+    assert resp.status_code == 200
+    d = resp.json()
+    assert d["disponible"] is True
+    assert d["etiqueta"] == "Tu ubicación"
+    assert d["temperatura"] == 27.0
+
+
+def test_endpoint_gps_fuera_de_rango():
+    resp = _cliente().get("/api/clima/ahora?lat=999&lon=0")
+    assert resp.status_code == 400
+
+
+def test_endpoint_lugar_desconocido():
+    resp = _cliente().get("/api/clima/ahora?lugar_id=narnia")
+    assert resp.status_code == 404
+
+
+def test_endpoint_respaldo_cuando_openmeteo_falla(monkeypatch):
+    """Si el vivo falla en una ciudad, se sirve el último dato del collector."""
+    import api
+
+    def _falla(_lugar):
+        raise api.openmeteo_clima.ClimaActualError("429 simulado")
+
+    monkeypatch.setattr(api.openmeteo_clima, "condiciones_actuales", _falla)
+
+    def _ultimo(fuente, lugar_id, metrica):
+        if metrica == "temperatura":
+            return _lectura("temperatura", 30.0, 45)
+        return _lectura("humedad", 70.0, 45)
+
+    monkeypatch.setattr(api.storage, "ultimo_valor", _ultimo)
+
+    resp = _cliente().get("/api/clima/ahora?lugar_id=santa-marta")
+    assert resp.status_code == 200
+    d = resp.json()
+    assert d["disponible"] is True
+    assert d["cacheado"] is True
+    assert d["temperatura"] == 30.0
+    assert d["humedad"] == 70.0
+    assert d["antiguedad_min"] >= 44
+
+
+def test_endpoint_gps_sin_respaldo_devuelve_no_disponible(monkeypatch):
+    """Un punto GPS sin historial y con el vivo caído → disponible: false."""
+    import api
+
+    def _falla(_lugar):
+        raise api.openmeteo_clima.ClimaActualError("429 simulado")
+
+    monkeypatch.setattr(api.openmeteo_clima, "condiciones_actuales", _falla)
+    resp = _cliente().get("/api/clima/ahora?lat=4.6&lon=-74.08")
+    assert resp.status_code == 200
+    d = resp.json()
+    assert d["disponible"] is False
+    assert "mensaje" in d
