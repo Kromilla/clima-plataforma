@@ -16,6 +16,7 @@ Tabla `config_usuario`:
 """
 from __future__ import annotations
 
+import logging
 import os
 import sqlite3
 from contextlib import contextmanager
@@ -23,6 +24,8 @@ from datetime import datetime, timezone
 from typing import Generator
 
 from sources.base import Lectura
+
+logger = logging.getLogger(__name__)
 
 
 def _db_path() -> str:
@@ -115,6 +118,33 @@ def inicializar_bd(db_path: str | None = None) -> None:
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_lecturas_unica "
             "ON lecturas (fuente, lugar_id, metrica, ts)"
         )
+
+    # Postgres/Supabase: cerrar el acceso público. Fuera del bloque anterior
+    # porque un fallo aquí no debe impedir que las tablas se creen.
+    _asegurar_rls(db_path)
+
+
+def _asegurar_rls(db_path: str | None = None) -> None:
+    """
+    Activa Row-Level Security en las tablas (solo Postgres/Supabase).
+
+    Supabase expone las tablas por su API REST con el rol público `anon`. Sin
+    RLS, cualquiera con la URL del proyecto puede leer/editar/borrar todo. Como
+    el backend se conecta por DATABASE_URL (rol dueño, que omite RLS), activarla
+    SIN políticas bloquea el acceso público sin afectar a la app. Idempotente.
+
+    Best-effort: si el rol no puede alterar la tabla, se registra y sigue —
+    el fix autoritativo es correr el ALTER en el SQL Editor de Supabase.
+    """
+    ruta = db_path or _db_path()
+    if not _es_postgres(ruta):
+        return
+    try:
+        with _conexion(ruta) as (con, _):
+            for tabla in ("lecturas", "config_usuario"):
+                con.execute(f"ALTER TABLE {tabla} ENABLE ROW LEVEL SECURITY")
+    except Exception as exc:  # noqa: BLE001 — la seguridad no debe tumbar el arranque
+        logger.warning("No se pudo activar RLS (córrelo en el SQL Editor): %s", exc)
 
 
 def _deduplicar(con: object) -> None:
