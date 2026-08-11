@@ -144,10 +144,14 @@ export function fetchClimaPorCoords(lat: number, lon: number) {
  * backend, así no gasta la cuota de la IP de Render. Devuelve '' si falla.
  */
 export async function fetchNombreUbicacion(lat: number, lon: number): Promise<string> {
+  // Se redondea a ~1 km (2 decimales) antes de mandar el punto al tercero:
+  // basta para resolver la ciudad y no expone la ubicación exacta del usuario.
+  const latAprox = lat.toFixed(2);
+  const lonAprox = lon.toFixed(2);
   try {
     const res = await fetch(
       `https://api.bigdatacloud.net/data/reverse-geocode-client` +
-        `?latitude=${lat}&longitude=${lon}&localityLanguage=es`,
+        `?latitude=${latAprox}&longitude=${lonAprox}&localityLanguage=es`,
     );
     if (!res.ok) return '';
     const d = await res.json();
