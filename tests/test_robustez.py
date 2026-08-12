@@ -493,3 +493,83 @@ def test_el_secreto_del_webhook_es_valido_para_telegram():
     secreto = api._webhook_secret()
     assert 1 <= len(secreto) <= 256
     assert re.fullmatch(r"[A-Za-z0-9_-]+", secreto)
+
+
+# ── Bug: el ALTER de RLS corría en cada arranque y tomaba lock exclusivo ──────
+
+def test_rls_no_altera_tablas_que_ya_la_tienen(monkeypatch):
+    """
+    `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` toma un lock ACCESS EXCLUSIVE
+    aunque no cambie nada, y esto corre en cada arranque de la API. Consultar
+    pg_class primero evita chocar con el recolector mientras escribe.
+    """
+    ejecutados = []
+
+    class _ConFalsa:
+        def execute(self, sql, *args):
+            ejecutados.append(sql)
+            if "pg_class" in sql:
+                # Simula: ambas tablas ya tienen RLS → ninguna fila pendiente.
+                return _CursorFalso([])
+            return _CursorFalso([])
+
+    class _CursorFalso:
+        def __init__(self, filas):
+            self._filas = filas
+
+        def fetchall(self):
+            return self._filas
+
+    from contextlib import contextmanager
+
+    @contextmanager
+    def _conexion_falsa(_ruta=None):
+        yield _ConFalsa(), True
+
+    monkeypatch.setattr(storage, "_conexion", _conexion_falsa)
+    monkeypatch.setattr(storage, "_es_postgres", lambda _r: True)
+
+    storage._asegurar_rls("postgresql://falso")
+
+    assert not any("ALTER TABLE" in s for s in ejecutados), (
+        f"no debía alterar nada si RLS ya está activo; ejecutó: {ejecutados}"
+    )
+
+
+def test_rls_activa_solo_la_tabla_que_falta(monkeypatch):
+    """Si a una tabla le falta RLS, se altera esa y solo esa."""
+    ejecutados = []
+
+    class _CursorFalso:
+        def __init__(self, filas):
+            self._filas = filas
+
+        def fetchall(self):
+            return self._filas
+
+    class _ConFalsa:
+        def execute(self, sql, *args):
+            ejecutados.append(sql)
+            if "pg_class" in sql:
+                return _CursorFalso([{"relname": "lecturas"}])
+            return _CursorFalso([])
+
+    from contextlib import contextmanager
+
+    @contextmanager
+    def _conexion_falsa(_ruta=None):
+        yield _ConFalsa(), True
+
+    monkeypatch.setattr(storage, "_conexion", _conexion_falsa)
+    monkeypatch.setattr(storage, "_es_postgres", lambda _r: True)
+
+    storage._asegurar_rls("postgresql://falso")
+
+    alters = [s for s in ejecutados if "ALTER TABLE" in s]
+    assert len(alters) == 1, f"esperaba 1 ALTER, hubo {len(alters)}: {alters}"
+    assert "lecturas" in alters[0]
+
+
+def test_rls_no_toca_sqlite(tmp_path):
+    """En SQLite (local/tests) no existe RLS: debe ser un no-op silencioso."""
+    storage._asegurar_rls(str(tmp_path / "x.db"))  # no debe lanzar

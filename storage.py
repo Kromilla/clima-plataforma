@@ -135,14 +135,25 @@ def _asegurar_rls(db_path: str | None = None) -> None:
 
     Best-effort: si el rol no puede alterar la tabla, se registra y sigue —
     el fix autoritativo es correr el ALTER en el SQL Editor de Supabase.
+
+    Solo altera las tablas a las que les falta: `ALTER TABLE` toma un lock
+    ACCESS EXCLUSIVE aunque no cambie nada, y esto corre en cada arranque de la
+    API (frecuente en Render por los cold starts). Consultar antes es una
+    lectura barata y evita chocar con el recolector mientras escribe.
     """
     ruta = db_path or _db_path()
     if not _es_postgres(ruta):
         return
     try:
         with _conexion(ruta) as (con, _):
-            for tabla in ("lecturas", "config_usuario"):
+            filas = con.execute(
+                "SELECT relname FROM pg_class "
+                "WHERE relname IN ('lecturas', 'config_usuario') AND NOT relrowsecurity"
+            ).fetchall()
+            for fila in filas:
+                tabla = fila["relname"]
                 con.execute(f"ALTER TABLE {tabla} ENABLE ROW LEVEL SECURITY")
+                logger.info("RLS activado en %s", tabla)
     except Exception as exc:  # noqa: BLE001 — la seguridad no debe tumbar el arranque
         logger.warning("No se pudo activar RLS (córrelo en el SQL Editor): %s", exc)
 
