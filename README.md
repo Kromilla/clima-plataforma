@@ -10,7 +10,7 @@ Air quality · Weather · Energy · Wildfires — Telegram alerts + real-time da
 [![Contributing](https://img.shields.io/badge/Contributing-guide-7c3aed.svg)](CONTRIBUTING.md)
 ![Python](https://img.shields.io/badge/Python-3.11+-3776ab.svg)
 ![React](https://img.shields.io/badge/React-19-61dafb.svg)
-![Tests](https://img.shields.io/badge/tests-120%20passing-22c55e.svg)
+![Tests](https://img.shields.io/badge/tests-134%20passing-22c55e.svg)
 
 **🌐 Language / Idioma:** [English](#english) · [Español](#español)
 
@@ -95,10 +95,10 @@ git config core.hooksPath .githooks
 cp .env.example .env            # paste your @BotFather token
 python scripts/telegram_chat_id.py           # gets your TELEGRAM_CHAT_ID
 
-# 3. Historical data for the predictor
+# 4. Historical data for the predictor
 python backfill.py --dias 730
 
-# 4. Dashboard dependencies
+# 5. Dashboard dependencies
 npm install --prefix dashboard-ui
 ```
 
@@ -201,7 +201,7 @@ Every source has a cascade fallback: **live API → SQLite cache → clear messa
 pytest tests/ -q
 ```
 
-**120 tests, all offline** — API responses are recorded as fixtures. Every bug found by running the project left a regression test behind (see `tests/test_robustez.py`).
+**134 tests, all offline** — API responses are recorded as fixtures. Every bug found by running the project left a regression test behind (see `tests/test_robustez.py`).
 
 ---
 
@@ -324,10 +324,10 @@ git config core.hooksPath .githooks
 cp .env.example .env            # pega tu token de @BotFather
 python scripts/telegram_chat_id.py           # obtiene tu TELEGRAM_CHAT_ID
 
-# 3. Historial para el predictor
+# 4. Historial para el predictor
 python backfill.py --dias 730
 
-# 4. Dependencias del dashboard
+# 5. Dependencias del dashboard
 npm install --prefix dashboard-ui
 ```
 
@@ -423,7 +423,7 @@ Cada fuente cae en cascada: **API → caché SQLite → mensaje claro**. Toda le
 pytest tests/ -q
 ```
 
-**120 tests, todos sin conexión a internet** — las respuestas de las APIs están grabadas como fixtures. Cada bug encontrado ejecutando el proyecto dejó su test de regresión (ver `tests/test_robustez.py`).
+**134 tests, todos sin conexión a internet** — las respuestas de las APIs están grabadas como fixtures. Cada bug encontrado ejecutando el proyecto dejó su test de regresión (ver `tests/test_robustez.py`).
 
 ---
 
