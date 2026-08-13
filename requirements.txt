@@ -1,26 +1,36 @@
+# Cada dependencia lleva un piso (la versión mínima con la API que usamos) y un
+# techo en la siguiente versión MAYOR. El techo es lo que evita que un release
+# con cambios incompatibles entre al build sin avisar: es el riesgo real, porque
+# aquí no hay lockfile. No se fijan versiones exactas a propósito — el proyecto
+# corre en Python 3.11 (CI/Render) y 3.14 (local), y cada uno resuelve ruedas
+# distintas.
+
 # ── Núcleo (Fase 1: bot + fuentes) ────────────────────────────────────────────
-requests>=2.31.0
+requests>=2.31.0,<3.0
 # El extra [job-queue] es obligatorio: sin él el bot arranca pero NO envía
 # alertas automáticas (solo responde comandos).
-python-telegram-bot[job-queue]>=20.7
+python-telegram-bot[job-queue]>=20.7,<23.0
 
 # ── API del dashboard (Fase 2) ────────────────────────────────────────────────
-fastapi>=0.110.0
-uvicorn[standard]>=0.27.0
-pydantic>=2.6.0
+# FastAPI y uvicorn siguen en 0.x: ahí el corte incompatible es la minor, pero
+# fijarla obligaría a subir el piso cada semana. El techo en 1.0 cubre el salto
+# a estable, que sí traerá cambios de ruptura.
+fastapi>=0.110.0,<1.0
+uvicorn[standard]>=0.27.0,<1.0
+pydantic>=2.6.0,<3.0
 
 # ── Base de datos ─────────────────────────────────────────────────────────────
 # SQLite (incluido en Python) para local/tests. Postgres solo en producción:
 # psycopg se importa de forma perezosa, solo si DATABASE_URL es postgresql://.
-psycopg[binary]>=3.1
+psycopg[binary]>=3.1,<4.0
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
-pytest>=8.0.0
-httpx>=0.27.0          # requerido por fastapi.testclient
+pytest>=8.0.0,<10.0
+httpx>=0.27.0,<1.0          # requerido por fastapi.testclient
 
 # ── Predictor de riesgo (Fase 4) ──────────────────────────────────────────────
-scikit-learn>=1.4.0
-numpy>=1.26.0
+scikit-learn>=1.4.0,<2.0
+numpy>=1.26.0,<3.0
 
 # Nota: el mapa de incendios usa Leaflet en el frontend (ver dashboard-ui/),
 # no folium — el dashboard es React + Vite, no Streamlit.
