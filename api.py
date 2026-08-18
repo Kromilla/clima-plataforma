@@ -22,7 +22,7 @@ import storage
 import telegram_handlers
 from config import cfg
 from locations import COLOMBIA, DEFAULT_LUGAR, LUGARES
-from sources import firms, openmeteo_clima
+from sources import firms, metar, openmeteo_clima
 from sources.base import Lectura
 from sources.registry import FUENTES, por_id
 
@@ -261,18 +261,25 @@ def obtener_clima_ahora(
         lugar["_id"] = lugar_id
         etiqueta = lugar["nombre"]
 
+    # Cascada, del dato más real al más estimado:
+    #   1. Estación METAR del aeropuerto — medición física, si representa a la ciudad.
+    #   2. Open-Meteo (que a su vez cae a MET Norway) — modelo en el punto exacto.
+    #   3. Último dato del collector — real pero viejo, y se marca como tal.
+    # Un punto GPS arbitrario no tiene estación asignada, así que arranca en el 2.
     try:
-        datos = openmeteo_clima.condiciones_actuales(lugar)
-    except openmeteo_clima.ClimaActualError as exc:
-        # Open-Meteo en vivo falló (típico: 429). Para una ciudad monitoreada,
-        # el collector ya guardó temp+humedad recientes: mejor mostrar ese dato
-        # real con su antigüedad que un error. Para un punto GPS arbitrario no
-        # hay historial, así que queda el mensaje.
-        respaldo = _clima_de_respaldo(lugar_id) if lat is None else None
-        if respaldo is not None:
-            return {"disponible": True, "lugar_id": lugar_id, "etiqueta": etiqueta,
-                    "cacheado": True, **respaldo}
-        return {"disponible": False, "mensaje": str(exc)}
+        datos = metar.condiciones_actuales(lugar)
+    except metar.MetarNoDisponible:
+        try:
+            datos = openmeteo_clima.condiciones_actuales(lugar)
+        except openmeteo_clima.ClimaActualError as exc:
+            # Para una ciudad monitoreada el collector ya guardó temp+humedad
+            # recientes: mejor ese dato real con su antigüedad que un error. Un
+            # punto GPS no tiene historial, así que ahí sí queda el mensaje.
+            respaldo = _clima_de_respaldo(lugar_id) if lat is None else None
+            if respaldo is not None:
+                return {"disponible": True, "lugar_id": lugar_id, "etiqueta": etiqueta,
+                        "cacheado": True, **respaldo}
+            return {"disponible": False, "mensaje": str(exc)}
 
     return {"disponible": True, "lugar_id": lugar_id, "etiqueta": etiqueta, **datos}
 

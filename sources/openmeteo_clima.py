@@ -216,7 +216,10 @@ def _via_openmeteo(lugar: dict) -> dict:
         raise ClimaActualError("Open-Meteo respondió sin condiciones actuales")
 
     return {
-        "origen": "Open-Meteo",
+        "origen": "Open-Meteo (modelo global)",
+        # No es una estación física: el frontend lo dice explícitamente para no
+        # presentar una interpolación como si fuera una medición.
+        "es_estacion": False,
         "ts": actual.get("time"),
         "temperatura": actual.get("temperature_2m"),
         "sensacion": actual.get("apparent_temperature"),
@@ -278,7 +281,8 @@ def _via_metno(lugar: dict) -> dict:
     viento_ms = detalles.get("wind_speed")
 
     return {
-        "origen": "MET Norway",
+        "origen": "MET Norway (modelo global)",
+        "es_estacion": False,
         "ts": punto.get("time", "").rstrip("Z").rstrip(),
         "temperatura": detalles.get("air_temperature"),
         "sensacion": None,  # met.no compact no da sensación térmica

@@ -82,7 +82,7 @@ _METNO_PAYLOAD = {
 def test_metno_parsea_campos_completos(monkeypatch):
     monkeypatch.setattr(clima.requests, "get", lambda *a, **k: _RespFalsa(_METNO_PAYLOAD))
     d = clima._via_metno({"lat": 11.24, "lon": -74.20})
-    assert d["origen"] == "MET Norway"
+    assert d["origen"].startswith("MET Norway")
     assert d["temperatura"] == 30.0
     assert d["humedad"] == 68.0
     assert d["viento_kmh"] == 36.0  # 10 m/s * 3.6
@@ -112,7 +112,7 @@ def test_condiciones_actuales_usa_metno_si_openmeteo_falla(monkeypatch):
     monkeypatch.setattr(clima, "_via_openmeteo", _falla)
     monkeypatch.setattr(clima.requests, "get", lambda *a, **k: _RespFalsa(_METNO_PAYLOAD))
     d = clima.condiciones_actuales({"lat": 11.24, "lon": -74.20})
-    assert d["origen"] == "MET Norway"
+    assert d["origen"].startswith("MET Norway")
     assert d["temperatura"] == 30.0
 
 
@@ -142,6 +142,20 @@ def _cliente():
     return TestClient(app)
 
 
+def _sin_metar(monkeypatch):
+    """
+    Desactiva la estación METAR en los tests del endpoint.
+
+    El endpoint la consulta primero, y la suite corre sin red: sin esto los
+    tests harían una petición real a la NOAA y dependerían del clima del día.
+    """
+    import api
+    monkeypatch.setattr(
+        api.metar, "condiciones_actuales",
+        lambda _lugar: (_ for _ in ()).throw(api.metar.MetarNoDisponible("sin estación en test")),
+    )
+
+
 def _lectura(metrica: str, valor: float, edad_min: int) -> Lectura:
     ts = datetime.now(timezone.utc) - timedelta(minutes=edad_min)
     return Lectura(
@@ -151,6 +165,7 @@ def _lectura(metrica: str, valor: float, edad_min: int) -> Lectura:
 
 
 def test_endpoint_gps_valido(monkeypatch):
+    _sin_metar(monkeypatch)
     import api
     monkeypatch.setattr(
         api.openmeteo_clima, "condiciones_actuales",
@@ -176,6 +191,7 @@ def test_endpoint_lugar_desconocido():
 
 def test_endpoint_respaldo_cuando_openmeteo_falla(monkeypatch):
     """Si el vivo falla en una ciudad, se sirve el último dato del collector."""
+    _sin_metar(monkeypatch)
     import api
 
     def _falla(_lugar):
@@ -202,6 +218,7 @@ def test_endpoint_respaldo_cuando_openmeteo_falla(monkeypatch):
 
 def test_endpoint_gps_sin_respaldo_devuelve_no_disponible(monkeypatch):
     """Un punto GPS sin historial y con el vivo caído → disponible: false."""
+    _sin_metar(monkeypatch)
     import api
 
     def _falla(_lugar):
