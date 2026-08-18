@@ -573,3 +573,41 @@ def test_rls_activa_solo_la_tabla_que_falta(monkeypatch):
 def test_rls_no_toca_sqlite(tmp_path):
     """En SQLite (local/tests) no existe RLS: debe ser un no-op silencioso."""
     storage._asegurar_rls(str(tmp_path / "x.db"))  # no debe lanzar
+
+
+# ── Bug: un modelo se mostraba como "Estación local" ─────────────────────────
+
+def test_un_modelo_no_se_presenta_como_estacion_local():
+    """
+    CAMS y Open-Meteo son modelos, no sensores en el sitio. Se etiquetaban con
+    procedencia "local", así que la UI mostraba "📍 Estación local (Modelo CAMS)"
+    — una estimación disfrazada de medición.
+    """
+    lec = _lectura("modelo")
+    etiqueta = lec.etiqueta_procedencia()
+    assert "Modelo" in etiqueta
+    assert "Estación local" not in etiqueta
+
+
+def test_una_estacion_real_si_se_presenta_como_local():
+    """La procedencia "local" sigue reservada para sensores físicos reales."""
+    assert "Estación local" in _lectura("local").etiqueta_procedencia()
+
+
+def test_las_fuentes_de_modelo_declaran_procedencia_modelo():
+    """
+    Las dos fuentes que interpolan (aire y clima de Open-Meteo) deben marcar sus
+    lecturas como "modelo". Si alguien las vuelve a poner en "local", la UI
+    volvería a mentir sobre el origen del dato.
+    """
+    import re
+    from pathlib import Path
+
+    raiz = Path(__file__).parent.parent
+    for archivo in ("sources/openmeteo_aire.py", "sources/openmeteo_clima.py"):
+        texto = (raiz / archivo).read_text(encoding="utf-8")
+        procedencias = re.findall(r'procedencia="(\w+)"', texto)
+        assert procedencias, f"{archivo}: no se encontró ninguna procedencia"
+        assert all(p == "modelo" for p in procedencias), (
+            f"{archivo} declara {procedencias}; deberían ser todas 'modelo'"
+        )

@@ -28,7 +28,11 @@ class Lectura:
     fuente: str                          # "openaq", "openmeteo", "electricity_maps", …
 
     # ── Trazabilidad ────────────────────────────────────────────────────────
-    procedencia: str                     # "local" | "fallback" | "cache"
+    # "local"    → estación física en el lugar
+    # "fallback"  → estación física de otro lugar cercano
+    # "modelo"    → valor calculado por un modelo, no medido por un sensor
+    # "cache"     → último valor guardado, porque la fuente no respondió
+    procedencia: str
     lugar_id: str                        # clave en LUGARES, ej. "santa-marta"
     estacion_nombre: str = ""            # nombre de la estación o zona, si aplica
 
@@ -82,6 +86,10 @@ class Lectura:
             base = f"📍 Estación local ({self.estacion_nombre or self.lugar_id})"
         elif self.procedencia == "fallback":
             base = f"📡 Estación alternativa ({self.estacion_nombre or 'fallback'})"
+        elif self.procedencia == "modelo":
+            # Un modelo interpola; no hay sensor en el punto. Llamarlo "estación
+            # local" sería presentar una estimación como si fuera una medición.
+            base = f"🛰️ Modelo ({self.estacion_nombre or 'global'})"
         else:
             return self.procedencia
 

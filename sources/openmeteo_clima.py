@@ -61,7 +61,8 @@ def _parsear_serie(data: dict, lugar_id: str, estacion: str) -> list[Lectura]:
                     unidad=unidad,
                     metrica=metrica,
                     fuente="openmeteo-clima",
-                    procedencia="local",
+                    # Igual que el aire: Open-Meteo es un modelo, no una estación.
+                    procedencia="modelo",
                     lugar_id=lugar_id,
                     estacion_nombre=estacion,
                     ts=ts,

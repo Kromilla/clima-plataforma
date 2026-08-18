@@ -63,7 +63,10 @@ def _parsear_serie(data: dict, lugar_id: str, estacion: str) -> list[Lectura]:
                 unidad=_UNIDAD,
                 metrica=_METRICA,
                 fuente="openmeteo-aire",
-                procedencia="local",
+                # "modelo", no "local": CAMS es un modelo de asimilación, no un
+                # sensor en el sitio. Etiquetarlo como estación local presentaba
+                # una estimación como si fuera una medición.
+                procedencia="modelo",
                 lugar_id=lugar_id,
                 estacion_nombre=estacion,
                 ts=ts,
