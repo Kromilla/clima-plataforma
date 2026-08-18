@@ -1,5 +1,30 @@
 """
-sources/openaq.py — Adaptador para OpenAQ API v3.
+sources/openaq.py — Adaptador para OpenAQ API v3. NO REGISTRADO: ver más abajo.
+
+⚠️ Este adaptador no está en `sources/registry.py` y no se usa en producción.
+Se conserva como referencia histórica (fue la fuente de aire original) y porque
+sus tests documentan la cascada de fallback.
+
+Dos razones para no conectarlo, medidas contra la API el 2026-08-18:
+
+1. Llama a `/v3/locations/{id}/measurements`, que ya no existe en la v3 y
+   responde 404. Las rutas vigentes son `/v3/sensors/{id}/measurements` y
+   `/v3/locations/{id}/latest`.
+2. Y aun arreglándolo, las estaciones colombianas están casi todas inactivas.
+   Antigüedad del dato más reciente por ciudad:
+       Bogotá        22 estaciones PM2.5 → ~1.5 años
+       Medellín      24 estaciones PM2.5 → ~2 años
+       Bucaramanga    2 estaciones PM2.5 → ~10 meses
+       Villavicencio  2 estaciones PM2.5 → ~1.4 años
+       Cali           2 estaciones PM2.5 → 1 activa (sensor de un colegio)
+       Santa Marta    0 estaciones (la más cercana con PM2.5 está a 474 km)
+   Con una sola estación viva en el país, y de bajo costo, el modelo CAMS de
+   Open-Meteo es la mejor fuente de aire disponible: cubre las 14 ciudades y se
+   actualiza cada hora. Por eso `openmeteo_aire.py` es la fuente registrada.
+
+Si algún día la red pública revive, arreglar el endpoint del punto 1 y exigir
+frescura (descartar estaciones cuyo `datetimeLast` no sea reciente) es lo único
+que hace falta para volver a enchufarlo.
 
 Cascada de fallback (nunca crashea):
     1. Estación LOCAL dentro del bbox del lugar
