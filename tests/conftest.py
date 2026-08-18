@@ -28,14 +28,17 @@ os.environ.setdefault("TELEGRAM_CHAT_ID", "0")
 
 @pytest.fixture(autouse=True)
 def _limpiar_caches_modulo():
-    """Los caches de módulo (firms, xm, clima) se limpian para aislar cada test."""
+    """Los caches de módulo (firms, xm, clima, metar) se limpian para aislar cada test."""
     import sources.firms as firms
     import sources.xm as xm
+    import sources.metar as metar
     import sources.openmeteo_clima as clima
     firms._CACHE_FOCOS.clear()
     xm._CACHE_SERIE = None
     clima._CACHE_ACTUAL.clear()
+    metar._CACHE.clear()
     yield
     firms._CACHE_FOCOS.clear()
     xm._CACHE_SERIE = None
     clima._CACHE_ACTUAL.clear()
+    metar._CACHE.clear()
