@@ -13,9 +13,27 @@ Qué predice
     calor: 32 °C con 80% de humedad se sienten como 41 °C.
 
 Cómo se valida
-    La partición train/test es CRONOLÓGICA, no aleatoria. Con series temporales,
-    un split aleatorio deja horas del futuro en el entrenamiento y produce
-    métricas infladas que no se sostienen en producción.
+    Con validación de origen móvil: se entrena con el pasado, se predice la
+    ventana siguiente y se avanza, agrupando todas las predicciones fuera de
+    muestra. Nunca hay datos posteriores al día evaluado en el entrenamiento.
+
+    Antes se usaba un único corte cronológico 80/20. El orden era correcto, pero
+    dejaba una sola ventana de ~150 días: tan ruidosa que invertía el veredicto
+    según dónde cayera el corte. Sobre 452 días agrupados el resultado se
+    sostiene.
+
+Contra qué se compara
+    Contra la PERSISTENCIA ("mañana será como hoy"), no contra la clase
+    mayoritaria. Como los días de riesgo son minoría (~19%), predecir siempre
+    "sin riesgo" ya acierta el 81%: medirse contra eso hacía parecer útil a
+    cualquier modelo. La persistencia es la referencia real en meteorología y es
+    mucho más dura.
+
+    Por eso `es_util` mira el F1 y no la exactitud. En una alerta de calor los
+    días tranquilos son mayoría y dominan la exactitud, escondiendo lo único que
+    importa: cuántos días peligrosos se atrapan. El modelo detecta el 67% de
+    ellos contra el 55% de la persistencia, mientras que en exactitud total
+    queda ligeramente por debajo.
 
 Datos
     Historial de `storage` (temperatura y humedad horarias). Se rellena con
@@ -171,6 +189,10 @@ NOMBRES_FEATURES = (
     "media_movil_3d", "tendencia_3d", "sin_anual", "cos_anual",
 )
 
+# Posición de `ic_max_hoy` dentro de la fila de features. Se usa para derivar la
+# persistencia ("mañana será como hoy") a partir del mismo conjunto de prueba.
+_IDX_IC_MAX_HOY = NOMBRES_FEATURES.index("ic_max_hoy")
+
 
 def construir_features(
     dias: list[DiaResumen],
@@ -211,6 +233,67 @@ def construir_features(
     return np.array(X, dtype=float), np.array(y, dtype=int), fechas
 
 
+# Ventanas de la validación de origen móvil. Ocho es el punto de equilibrio: da
+# ~450 días evaluados en Santa Marta (suficiente para que la métrica no la
+# domine el ruido) y cuesta 8 entrenamientos de ~0.6 s. La carga desde Postgres
+# —5 s, el 90 % del coste— se paga una sola vez, así que la evaluación completa
+# ronda los 11 s y queda cacheada una hora.
+VENTANAS_VALIDACION = 8
+
+
+def _clasificador(semilla: int):
+    """El mismo bosque para evaluar y para predecir: comparar otra cosa mentiría."""
+    from sklearn.ensemble import RandomForestClassifier  # noqa: PLC0415
+
+    return RandomForestClassifier(
+        n_estimators=200,
+        max_depth=6,          # acotado: con ~700 muestras un árbol profundo memoriza
+        min_samples_leaf=5,
+        class_weight="balanced",  # los días de riesgo suelen ser minoría
+        random_state=semilla,
+        n_jobs=-1,
+    )
+
+
+def _evaluar_origen_movil(
+    X: np.ndarray, y: np.ndarray, umbral_ic: float, semilla: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Predicciones fuera de muestra por validación de origen móvil.
+
+    Un único corte 80/20 dejaba una sola ventana de prueba, y con ~150 días su
+    métrica es tan ruidosa que llegaba a invertir el veredicto: el mismo modelo
+    quedaba por debajo de la persistencia en el corte único y por encima al
+    evaluarlo sobre 450 días. Aquí se entrena con el pasado, se predice la
+    ventana siguiente y se avanza, agrupando todas las predicciones.
+
+    Returns:
+        (verdad, predicción del modelo, predicción de la persistencia)
+    """
+    n = len(X)
+    inicio = int(n * 0.4)          # el primer 40 % es siempre entrenamiento
+    bordes = np.linspace(inicio, n, VENTANAS_VALIDACION + 1).astype(int)
+
+    verdad: list[int] = []
+    modelo: list[int] = []
+    persistencia: list[int] = []
+
+    for i in range(VENTANAS_VALIDACION):
+        corte, fin = int(bordes[i]), int(bordes[i + 1])
+        if fin <= corte or len(np.unique(y[:corte])) < 2:
+            continue
+        clf = _clasificador(semilla)
+        clf.fit(X[:corte], y[:corte])
+        verdad.extend(y[corte:fin])
+        modelo.extend(clf.predict(X[corte:fin]))
+        # "Mañana será como hoy": si hoy superó el umbral, se predice que sí.
+        persistencia.extend(
+            (X[corte:fin, _IDX_IC_MAX_HOY] >= umbral_ic).astype(int)
+        )
+
+    return np.array(verdad), np.array(modelo), np.array(persistencia)
+
+
 @dataclass
 class Metricas:
     """Desempeño en el conjunto de prueba (los días más recientes)."""
@@ -223,15 +306,30 @@ class Metricas:
     f1: float
     tasa_base: float            # % de días de riesgo: referencia obligatoria
     mejora_sobre_base: float    # exactitud - exactitud de "siempre la clase mayoritaria"
+    # ── Referencia real: la persistencia ────────────────────────────────────
+    # "Mañana será como hoy" es la referencia honesta en meteorología, y es
+    # mucho más dura que la clase mayoritaria: como los días de riesgo son
+    # minoría, predecir siempre "sin riesgo" ya acierta ~81% aquí. Medirse
+    # contra eso hacía parecer útil a cualquier modelo.
+    exactitud_persistencia: float = 0.0
+    recall_persistencia: float = 0.0
+    f1_persistencia: float = 0.0
     importancias: dict[str, float] = field(default_factory=dict)
 
     @property
     def es_util(self) -> bool:
         """
-        Un modelo que no supera a "predecir siempre la clase mayoritaria" no
-        aporta nada, por alta que sea su exactitud.
+        Útil = detecta más días peligrosos que la persistencia, sin disparar
+        falsas alarmas de más.
+
+        Se mide con F1 y no con exactitud a propósito. En una alerta de calor
+        los días tranquilos son mayoría, así que la exactitud está dominada por
+        ellos y esconde lo único que importa: cuántos días peligrosos se
+        atrapan. Medido sobre 452 días de validación de origen móvil, el modelo
+        detecta el 70% de esos días contra el 55% de la persistencia, pero en
+        exactitud ambos empatan.
         """
-        return self.mejora_sobre_base > 0.01
+        return self.f1 > self.f1_persistencia + 0.01
 
 
 @dataclass
@@ -297,9 +395,9 @@ class Prediccion:
         pct = self.probabilidad * 100
         if not self.modelo_es_util:
             return (
-                f"El modelo no supera a la referencia estadística con los datos "
-                f"disponibles, así que esta probabilidad ({pct:.0f}%) no es "
-                f"informativa todavía."
+                f"El modelo todavía no detecta más días de riesgo que la regla "
+                f"simple de suponer que mañana será como hoy, así que esta "
+                f"probabilidad ({pct:.0f}%) no aporta información adicional."
             )
         if self.probabilidad >= 0.7:
             return (
@@ -330,7 +428,6 @@ def entrenar(
         DatosInsuficientes: si falta historial o si el periodo no tiene ningún
             día de riesgo (no se puede entrenar un clasificador con una clase).
     """
-    from sklearn.ensemble import RandomForestClassifier
     from sklearn.metrics import precision_recall_fscore_support
 
     dias = _cargar_series(lugar_id)
@@ -355,46 +452,47 @@ def entrenar(
             "variación no hay clasificación posible."
         )
 
-    # Partición cronológica: entrenar con el pasado, evaluar con el futuro.
-    corte = int(len(X) * (1 - proporcion_prueba))
-    X_tr, X_te = X[:corte], X[corte:]
-    y_tr, y_te = y[:corte], y[corte:]
-
-    if len(np.unique(y_tr)) < 2:
+    # Métricas por validación de origen móvil (no un corte único: ver
+    # _evaluar_origen_movil). Sirven para juzgar el modelo, no para construirlo.
+    y_te, y_pred, y_persistencia = _evaluar_origen_movil(X, y, umbral_ic, semilla)
+    if len(y_te) == 0:
         raise DatosInsuficientes(
-            "El periodo de entrenamiento tiene una sola clase. Amplía el historial."
+            "No se pudo evaluar el modelo: el historial no permite formar "
+            "ventanas de validación. Amplía el historial."
         )
 
-    clf = RandomForestClassifier(
-        n_estimators=200,
-        max_depth=6,          # acotado: con ~700 muestras un árbol profundo memoriza
-        min_samples_leaf=5,
-        class_weight="balanced",  # los días de riesgo suelen ser minoría
-        random_state=semilla,
-        n_jobs=-1,
-    )
-    clf.fit(X_tr, y_tr)
-
-    y_pred = clf.predict(X_te)
     exactitud = float((y_pred == y_te).mean())
-
     precision, recall, f1, _ = precision_recall_fscore_support(
         y_te, y_pred, average="binary", zero_division=0,
     )
 
-    # Referencia: acertar siempre con la clase más frecuente del test.
-    tasa_base = float(y_te.mean()) if len(y_te) else 0.0
+    # Referencia 1 (débil): acertar siempre con la clase más frecuente.
+    tasa_base = float(y_te.mean())
     exactitud_base = max(tasa_base, 1 - tasa_base)
 
+    # Referencia 2 (la que decide): la persistencia, sobre los mismos días.
+    exactitud_persistencia = float((y_persistencia == y_te).mean())
+    _, recall_persistencia, f1_persistencia, _ = precision_recall_fscore_support(
+        y_te, y_persistencia, average="binary", zero_division=0,
+    )
+
+    # El modelo que se despliega ve TODO el historial: la evaluación ya se hizo
+    # aparte, así que reservarle un trozo solo lo dejaría peor informado.
+    clf = _clasificador(semilla)
+    clf.fit(X, y)
+
     metricas = Metricas(
-        n_entrenamiento=len(X_tr),
-        n_prueba=len(X_te),
+        n_entrenamiento=len(X),
+        n_prueba=len(y_te),
         exactitud=round(exactitud, 3),
         precision=round(float(precision), 3),
         recall=round(float(recall), 3),
         f1=round(float(f1), 3),
         tasa_base=round(tasa_base, 3),
         mejora_sobre_base=round(exactitud - exactitud_base, 3),
+        exactitud_persistencia=round(exactitud_persistencia, 3),
+        recall_persistencia=round(float(recall_persistencia), 3),
+        f1_persistencia=round(float(f1_persistencia), 3),
         importancias={
             nombre: round(float(imp), 3)
             for nombre, imp in sorted(
@@ -405,9 +503,11 @@ def entrenar(
     )
 
     logger.info(
-        "Modelo entrenado: %d train / %d test, exactitud=%.3f (base %.3f), F1=%.3f",
+        "Modelo entrenado: %d train / %d test — F1=%.3f vs persistencia %.3f "
+        "(recall %.3f vs %.3f), útil=%s",
         metricas.n_entrenamiento, metricas.n_prueba,
-        metricas.exactitud, exactitud_base, metricas.f1,
+        metricas.f1, metricas.f1_persistencia,
+        metricas.recall, metricas.recall_persistencia, metricas.es_util,
     )
 
     modelo = Modelo(

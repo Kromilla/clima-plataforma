@@ -200,17 +200,62 @@ def test_entrena_y_es_reproducible(db_con_historial):
     assert m1.metricas.f1 == m2.metricas.f1
 
 
-def test_la_particion_es_cronologica(db_con_historial):
+def test_la_evaluacion_no_ve_el_futuro(db_con_historial):
     """
-    Con series temporales, una partición aleatoria filtra el futuro al
-    entrenamiento e infla las métricas.
+    Con series temporales, entrenar con datos posteriores al día que se evalúa
+    infla las métricas y el modelo no sostiene ese número en producción.
+
+    Se comprueba de la forma más directa posible: si el futuro se filtrara,
+    alterar los últimos días cambiaría las predicciones de las ventanas
+    iniciales. No debe cambiar ninguna.
+    """
+    _, dias = risk.entrenar("santa-marta")
+    X, y, _ = risk.construir_features(dias)
+
+    _, pred_original, _ = risk._evaluar_origen_movil(X, y, risk.UMBRAL_RIESGO_IC, 42)
+
+    X_alterado = X.copy()
+    X_alterado[-40:] += 25.0          # un futuro absurdamente caluroso
+    y_alterado = y.copy()
+    y_alterado[-40:] = 1 - y_alterado[-40:]
+
+    _, pred_alterada, _ = risk._evaluar_origen_movil(
+        X_alterado, y_alterado, risk.UMBRAL_RIESGO_IC, 42)
+
+    # Las ventanas anteriores a la manipulación deben predecir exactamente igual.
+    sin_tocar = len(pred_original) - 40
+    assert (pred_original[:sin_tocar] == pred_alterada[:sin_tocar]).all(), (
+        "alterar el futuro cambió predicciones pasadas: hay fuga temporal"
+    )
+
+
+def test_el_modelo_desplegado_usa_todo_el_historial(db_con_historial):
+    """
+    La evaluación ya se hace aparte con origen móvil, así que reservarle un
+    trozo al modelo que predice solo lo dejaría peor informado.
     """
     modelo, dias = risk.entrenar("santa-marta")
     X, _, _ = risk.construir_features(dias)
 
-    esperado_train = int(len(X) * 0.8)
-    assert modelo.metricas.n_entrenamiento == esperado_train
-    assert modelo.metricas.n_prueba == len(X) - esperado_train
+    assert modelo.metricas.n_entrenamiento == len(X)
+    # Y aun así se evaluó fuera de muestra sobre una porción amplia.
+    assert 0 < modelo.metricas.n_prueba < len(X)
+
+
+def test_se_compara_contra_la_persistencia(db_con_historial):
+    """
+    La clase mayoritaria es una vara floja: como los días de riesgo son minoría,
+    predecir siempre "sin riesgo" ya acierta ~80%. La referencia honesta en
+    clima es la persistencia ("mañana será como hoy"), y es la que decide si el
+    modelo se declara útil.
+    """
+    modelo, _ = risk.entrenar("santa-marta")
+    m = modelo.metricas
+
+    assert 0.0 <= m.f1_persistencia <= 1.0
+    assert 0.0 <= m.recall_persistencia <= 1.0
+    # es_util mira el F1 contra la persistencia, no la exactitud contra la base.
+    assert m.es_util == (m.f1 > m.f1_persistencia + 0.01)
 
 
 def test_reporta_la_tasa_base(db_con_historial):
@@ -272,7 +317,10 @@ def test_la_etiqueta_experimental_viaja_con_el_dato(db_con_historial):
 
 
 def test_avisa_cuando_el_modelo_no_es_util(db_con_historial):
-    """Si el modelo no supera la referencia, el mensaje debe decirlo."""
+    """
+    Si el modelo no supera a la persistencia, el mensaje al usuario debe decirlo
+    en vez de presentar la probabilidad como si valiera algo.
+    """
     modelo, dias = risk.entrenar("santa-marta")
     pred = modelo.predecir_manana(dias)
     pred_inutil = risk.Prediccion(
@@ -282,7 +330,9 @@ def test_avisa_cuando_el_modelo_no_es_util(db_con_historial):
         umbral_ic=pred.umbral_ic,
         modelo_es_util=False,
     )
-    assert "no es informativa" in pred_inutil.mensaje
+    mensaje = pred_inutil.mensaje.lower()
+    assert "mañana será como hoy" in mensaje, "debe nombrar la regla que no logra superar"
+    assert "no aporta" in mensaje
 
 
 def test_predecir_sin_dias_suficientes_lanza(db_con_historial):
