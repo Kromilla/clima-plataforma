@@ -15,7 +15,7 @@ que recortarla lo rompería. Si algún día se decide tocarla, hay que revisar
 Uso:
     python scripts/limpiar_historico.py                 # simulación, no borra
     python scripts/limpiar_historico.py --aplicar       # borra de verdad
-    python scripts/limpiar_historico.py --dias 30       # otro corte
+    python scripts/limpiar_historico.py --dias 7        # otro corte
 
 Funciona igual en SQLite (local) y Postgres (producción): `ts` se guarda como
 ISO 8601 UTC, y en ese formato el orden alfabético coincide con el cronológico.
@@ -38,7 +38,10 @@ FUENTES_RECORTABLES = ("openmeteo-aire", "xm", "firms")
 # Excluida a propósito: alimenta el predictor de riesgo.
 FUENTE_PREDICTOR = "openmeteo-clima"
 
-DIAS_POR_DEFECTO = 7
+# 30 días: las gráficas piden 24-48 h, así que sobra margen, y el techo evita
+# que el histórico crezca sin límite. El job semanal de .github/workflows/
+# limpieza.yml lo mantiene solo.
+DIAS_POR_DEFECTO = 30
 
 
 def main() -> int:

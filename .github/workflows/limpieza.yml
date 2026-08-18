@@ -1,0 +1,45 @@
+name: Limpieza
+
+# Recorta el histórico que solo alimenta gráficas (aire, energía, incendios).
+# Sin esto la tabla crece sin límite: ~750 filas/día que nadie vuelve a leer,
+# porque el dashboard pide como mucho las últimas 24-48 h.
+#
+# NO toca `openmeteo-clima`: esa serie entrena el predictor de riesgo, que
+# necesita al menos 30 días. El script la excluye de forma explícita.
+on:
+  schedule:
+    - cron: "17 4 * * 0"      # domingos 04:17 UTC, fuera del pico del collector
+  workflow_dispatch: {}        # permite correrlo a mano desde la pestaña Actions
+
+concurrency:
+  group: limpieza
+  cancel-in-progress: false
+
+jobs:
+  limpiar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: Actions
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Recortar histórico
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          PYTHONUTF8: '1'
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::notice::Falta el secret DATABASE_URL. Omitiendo."
+            exit 0
+          fi
+          python scripts/limpiar_historico.py --dias 30 --aplicar
