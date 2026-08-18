@@ -27,7 +27,7 @@ from datetime import date, datetime, timedelta, timezone
 import requests
 
 import storage
-from sources.base import Lectura
+from sources.base import LUGAR_NACIONAL, Lectura
 
 logger = logging.getLogger(__name__)
 
@@ -145,7 +145,11 @@ def obtener_ultimo(lugar: dict) -> Lectura:
     Args:
         lugar: dict de LUGARES con '_id'
     """
-    lugar_id = lugar.get("_id", "desconocido")
+    # El dato es del sistema nacional, así que se persiste una sola vez bajo
+    # LUGAR_NACIONAL en vez de una copia idéntica por ciudad. `lugar_pedido`
+    # solo se usa para los logs.
+    lugar_pedido = lugar.get("_id", "desconocido")
+    lugar_id = LUGAR_NACIONAL
 
     try:
         serie = _serie_nacional()
@@ -178,10 +182,10 @@ def obtener_ultimo(lugar: dict) -> Lectura:
         return lectura
 
     except (requests.RequestException, ValueError, XMSinDatos) as exc:
-        logger.warning("XM falló para %s: %s", lugar_id, exc)
+        logger.warning("XM falló (pedido por %s): %s", lugar_pedido, exc)
         lectura_cache = storage.ultimo_valor(_FUENTE, lugar_id, _METRICA)
         if lectura_cache is not None:
-            logger.info("XM [caché] para %s", lugar_id)
+            logger.info("XM [caché] nacional")
             return lectura_cache.como_cache()
         raise XMSinDatos(
             f"Sin datos de intensidad de carbono para '{lugar_id}'"

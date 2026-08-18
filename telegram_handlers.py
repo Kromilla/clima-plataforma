@@ -23,7 +23,7 @@ from sources.openaq import OpenAQSinDatos
 from sources.openaq import obtener_ultimo as openaq_obtener
 from sources.openmeteo_aire import OpenMeteoAireSinDatos
 from sources.openmeteo_aire import obtener_ultimo as openmeteo_obtener
-from sources.registry import por_id
+from sources.registry import lugar_efectivo, por_id
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +72,8 @@ def extras_estado(lugar_id: str) -> str:
         registrada = por_id(fuente_id)
         if registrada is None:
             continue
-        lectura = storage.ultimo_valor(fuente_id, lugar_id, registrada.metrica)
+        efectivo = lugar_efectivo(fuente_id, lugar_id)
+        lectura = storage.ultimo_valor(fuente_id, efectivo, registrada.metrica)
         if lectura is None:
             continue
         lineas.append(

@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sources.base import Lectura
+from sources.base import LUGAR_NACIONAL, Lectura
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
@@ -95,7 +95,8 @@ def test_xm_cae_a_cache_si_la_api_falla(monkeypatch, tmp_path):
 
     previa = Lectura(
         valor=150.0, unidad="gCO₂eq/kWh", metrica="intensidad_co2", fuente="xm",
-        procedencia="local", lugar_id="santa-marta", estacion_nombre="SIN",
+        # Bajo el lugar nacional: XM no se guarda por ciudad.
+        procedencia="local", lugar_id=LUGAR_NACIONAL, estacion_nombre="SIN",
         ts=datetime.now(timezone.utc) - timedelta(hours=3),
     )
     st.guardar(previa, db)

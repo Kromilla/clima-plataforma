@@ -55,12 +55,21 @@ def recolectar_una_vez() -> dict[str, str]:
         — pensado para logging y para que los tests puedan afirmar sobre él.
     """
     resumen: dict[str, str] = {}
+    # Las fuentes nacionales (XM) publican un solo dato para todo el país:
+    # consultarlas una vez por ciudad eran 14 llamadas y 14 filas idénticas.
+    nacionales_hechas: set[str] = set()
 
     for lugar_id in LUGARES:
         lugar = _lugar_con_id(lugar_id)
 
         for fuente in FUENTES:
-            clave = f"{lugar_id}/{fuente.id}"
+            if fuente.ambito == "nacional":
+                if fuente.id in nacionales_hechas:
+                    continue
+                nacionales_hechas.add(fuente.id)
+                clave = f"nacional/{fuente.id}"
+            else:
+                clave = f"{lugar_id}/{fuente.id}"
 
             if fuente.requiere_clave and not fuente.clave_configurada():
                 resumen[clave] = "sin clave"

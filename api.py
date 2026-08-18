@@ -24,7 +24,7 @@ from config import cfg
 from locations import COLOMBIA, DEFAULT_LUGAR, LUGARES
 from sources import firms, metar, openmeteo_clima
 from sources.base import Lectura
-from sources.registry import FUENTES, por_id
+from sources.registry import FUENTES, lugar_efectivo, por_id
 
 # httpx (que usa la librería de Telegram) loguea la URL con el token; silenciarlo.
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -200,7 +200,9 @@ def obtener_clima_actual(lugar_id: str = DEFAULT_LUGAR) -> dict[str, LecturaSche
 
     resultado: dict[str, LecturaSchema | None] = {}
     for fuente in FUENTES:
-        lectura = storage.ultimo_valor(fuente.id, lugar_id, fuente.metrica)
+        # Las fuentes nacionales (XM) se guardan una sola vez, no por ciudad.
+        efectivo = lugar_efectivo(fuente.id, lugar_id)
+        lectura = storage.ultimo_valor(fuente.id, efectivo, fuente.metrica)
         resultado[fuente.id] = _serializar(lectura) if lectura else None
 
     return resultado
@@ -231,7 +233,8 @@ def obtener_historial(
             )
         metrica = registrada.metrica
 
-    return [_serializar(h) for h in storage.historial(fuente, lugar_id, metrica, limite)]
+    efectivo = lugar_efectivo(fuente, lugar_id)
+    return [_serializar(h) for h in storage.historial(fuente, efectivo, metrica, limite)]
 
 
 @app.get("/api/clima/ahora")
@@ -320,7 +323,7 @@ def estado_fuentes(lugar_id: str = DEFAULT_LUGAR):
             }
             continue
 
-        ultima = storage.ultimo_valor(fuente.id, lugar_id, fuente.metrica)
+        ultima = storage.ultimo_valor(fuente.id, lugar_efectivo(fuente.id, lugar_id), fuente.metrica)
         if ultima is None:
             estado, detalle = "rojo", "sin datos"
         else:

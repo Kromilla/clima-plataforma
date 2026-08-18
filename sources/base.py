@@ -17,6 +17,13 @@ from datetime import datetime, timezone
 from typing import Protocol, runtime_checkable
 
 
+# lugar_id bajo el que se guardan las fuentes de ámbito nacional (ver
+# registry.FuenteRegistrada.ambito). Vive aquí y no en el registro porque los
+# adaptadores lo necesitan, y el registro los importa a ellos: al revés sería
+# un import circular.
+LUGAR_NACIONAL = "colombia"
+
+
 @dataclass
 class Lectura:
     """Resultado normalizado de cualquier fuente de datos."""

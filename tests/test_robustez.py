@@ -339,7 +339,12 @@ def test_xm_guarda_la_serie_completa_no_solo_la_ultima_hora(monkeypatch, tmp_pat
     with patch.object(xm.requests, "post", return_value=resp):
         xm.obtener_ultimo({"_id": "santa-marta"})
 
-    guardadas = storage.historial("xm", "santa-marta", "intensidad_co2", 1000, db)
+    # XM es de ámbito nacional: se persiste una vez bajo LUGAR_NACIONAL, no una
+    # copia por ciudad. Se pide con el id de una ciudad y se resuelve al nacional.
+    from sources.registry import lugar_efectivo
+
+    guardadas = storage.historial(
+        "xm", lugar_efectivo("xm", "santa-marta"), "intensidad_co2", 1000, db)
     assert len(guardadas) == 48, f"esperaba 48 horas (2 días), guardó {len(guardadas)}"
 
     # Ordenadas y sin duplicados
@@ -611,3 +616,101 @@ def test_las_fuentes_de_modelo_declaran_procedencia_modelo():
         assert all(p == "modelo" for p in procedencias), (
             f"{archivo} declara {procedencias}; deberían ser todas 'modelo'"
         )
+
+
+# ── Redundancia: XM guardaba 14 copias del mismo dato nacional ───────────────
+
+def test_xm_es_de_ambito_nacional():
+    """
+    XM publica la intensidad de carbono del Sistema Interconectado Nacional: un
+    solo número para todo el país. Guardarlo por ciudad eran 14 filas idénticas
+    por hora (17x de redundancia medida en producción).
+    """
+    from sources.registry import por_id
+
+    assert por_id("xm").ambito == "nacional"
+
+
+def test_las_fuentes_locales_siguen_siendo_por_ciudad():
+    """El aire, el clima y los incendios sí dependen del lat/lon: no tocarlos."""
+    from sources.registry import por_id
+
+    for fuente_id in ("openmeteo-aire", "openmeteo-clima", "firms"):
+        assert por_id(fuente_id).ambito == "local"
+
+
+def test_lugar_efectivo_redirige_solo_las_nacionales():
+    from sources.base import LUGAR_NACIONAL
+    from sources.registry import lugar_efectivo
+
+    assert lugar_efectivo("xm", "bogota") == LUGAR_NACIONAL
+    assert lugar_efectivo("openmeteo-aire", "bogota") == "bogota"
+    # Una fuente desconocida no se redirige: se devuelve el lugar tal cual.
+    assert lugar_efectivo("inexistente", "bogota") == "bogota"
+
+
+def test_el_collector_consulta_las_nacionales_una_sola_vez(monkeypatch):
+    """
+    Antes se llamaba a XM una vez por ciudad: 14 peticiones y 14 filas iguales.
+    Ahora debe consultarse una vez por pasada, sin importar cuántas ciudades.
+    """
+    import collector
+    from locations import LUGARES
+
+    llamadas: dict[str, int] = {}
+
+    def _falsa(fuente_id):
+        def _obtener(lugar):
+            llamadas[fuente_id] = llamadas.get(fuente_id, 0) + 1
+            return _lectura("local")
+        return _obtener
+
+    from sources.registry import FuenteRegistrada
+    falsas = tuple(
+        FuenteRegistrada(id=f.id, etiqueta=f.etiqueta, metrica=f.metrica,
+                         obtener=_falsa(f.id), ambito=f.ambito)
+        for f in collector.FUENTES
+    )
+    monkeypatch.setattr(collector, "FUENTES", falsas)
+
+    collector.recolectar_una_vez()
+
+    assert llamadas["xm"] == 1, f"XM se consultó {llamadas['xm']} veces, debía ser 1"
+    assert llamadas["openmeteo-aire"] == len(LUGARES), "el aire sí es por ciudad"
+
+
+def test_la_api_encuentra_xm_pidiendolo_con_una_ciudad(monkeypatch):
+    """
+    XM se guarda bajo el lugar nacional, pero el dashboard lo pide con la ciudad
+    activa. Si la API no tradujera el lugar, la pestaña de Energía saldría vacía
+    tras la migración: es justo el fallo que este test evita.
+    """
+    from fastapi.testclient import TestClient
+
+    import api
+    from sources.base import LUGAR_NACIONAL
+
+    pedidos: list[tuple[str, str]] = []
+
+    def _ultimo(fuente, lugar_id, metrica):
+        pedidos.append((fuente, lugar_id))
+        if fuente != "xm":
+            return None
+        # Solo responde si se pidió bajo el lugar nacional.
+        if lugar_id != LUGAR_NACIONAL:
+            return None
+        return Lectura(
+            valor=180.0, unidad="gCO₂eq/kWh", metrica="intensidad_co2", fuente="xm",
+            procedencia="local", lugar_id=LUGAR_NACIONAL, estacion_nombre="SIN",
+            ts=datetime.now(timezone.utc),
+        )
+
+    monkeypatch.setattr(api.storage, "ultimo_valor", _ultimo)
+
+    resp = TestClient(api.app).get("/api/clima/actual?lugar_id=bogota")
+    assert resp.status_code == 200
+    assert resp.json()["xm"]["valor"] == 180.0
+
+    # XM se pidió bajo el nacional; el aire siguió pidiéndose por ciudad.
+    assert ("xm", LUGAR_NACIONAL) in pedidos
+    assert ("openmeteo-aire", "bogota") in pedidos
