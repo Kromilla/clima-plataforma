@@ -454,6 +454,10 @@ def obtener_riesgo(lugar_id: str = DEFAULT_LUGAR):
             "f1": metricas.f1,
             "tasa_base": metricas.tasa_base,
             "mejora_sobre_base": metricas.mejora_sobre_base,
+            # La referencia que decide si el modelo aporta: "mañana será como hoy".
+            "exactitud_persistencia": metricas.exactitud_persistencia,
+            "recall_persistencia": metricas.recall_persistencia,
+            "f1_persistencia": metricas.f1_persistencia,
             "n_entrenamiento": metricas.n_entrenamiento,
             "n_prueba": metricas.n_prueba,
             "importancias": metricas.importancias,

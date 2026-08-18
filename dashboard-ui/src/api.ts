@@ -187,6 +187,10 @@ export interface Riesgo {
     f1: number;
     tasa_base: number;
     mejora_sobre_base: number;
+    /** Referencia honesta: "mañana será como hoy". Es la vara que decide es_util. */
+    exactitud_persistencia: number;
+    recall_persistencia: number;
+    f1_persistencia: number;
     n_entrenamiento: number;
     n_prueba: number;
     importancias: Record<string, number>;

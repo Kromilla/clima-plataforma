@@ -126,13 +126,14 @@ export default function Risk() {
             <div className="card card-pad mt-4 sm:mt-6">
               <h2 className="text-base font-semibold text-heading">Qué tan bueno es el modelo</h2>
               <p className="mb-4 mt-1 text-sm text-muted">
-                Evaluado sobre los días más recientes, que no se usaron para entrenar.
+                Evaluado en {modelo.n_prueba} días que nunca vio al entrenar, avanzando por
+                ventanas sucesivas.
               </p>
 
               {!modelo.es_util && (
                 <div className="mb-4 rounded-xl bg-amber-500/12 p-3 text-sm text-amber-700 dark:text-amber-300">
-                  El modelo no supera a la referencia estadística: con los datos actuales su
-                  predicción no es informativa.
+                  El modelo todavía no detecta más días de riesgo que suponer que mañana será
+                  como hoy, así que su predicción no aporta información adicional.
                 </div>
               )}
 
@@ -150,18 +151,37 @@ export default function Risk() {
                 ))}
               </div>
 
-              <div className="mt-4 space-y-1.5 text-sm text-body">
-                <p>
-                  Mejora sobre acertar siempre la clase mayoritaria:{' '}
-                  <strong className={modelo.mejora_sobre_base > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}>
-                    {modelo.mejora_sobre_base > 0 ? '+' : ''}{(modelo.mejora_sobre_base * 100).toFixed(1)} puntos
-                  </strong>
+              {/* La comparación que decide. Acertar en promedio es fácil cuando los
+                  días tranquilos son mayoría; lo que importa en una alerta es cuántos
+                  días peligrosos se atrapan, y contra qué regla simple se compara. */}
+              <div className="mt-4 rounded-xl border border-line p-3">
+                <p className="mb-2 text-sm font-medium text-body">
+                  Comparado con suponer que mañana será como hoy
                 </p>
-                <p className="text-xs text-muted">
-                  Entrenado con {modelo.n_entrenamiento} días, evaluado con {modelo.n_prueba}. El{' '}
-                  {(modelo.tasa_base * 100).toFixed(0)}% de los días de prueba fueron de riesgo.
-                </p>
+                <div className="space-y-1.5 text-sm">
+                  {[
+                    { e: 'Días peligrosos detectados', m: modelo.recall, p: modelo.recall_persistencia },
+                    { e: 'Equilibrio (F1)', m: modelo.f1, p: modelo.f1_persistencia },
+                    { e: 'Aciertos en total', m: modelo.exactitud, p: modelo.exactitud_persistencia },
+                  ].map((f) => (
+                    <div key={f.e} className="flex items-baseline justify-between gap-3">
+                      <span className="text-muted">{f.e}</span>
+                      <span className="tabular-nums">
+                        <strong className={f.m > f.p ? 'text-emerald-600 dark:text-emerald-400' : 'text-body'}>
+                          {(f.m * 100).toFixed(0)}%
+                        </strong>
+                        <span className="text-muted"> vs {(f.p * 100).toFixed(0)}%</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
+
+              <p className="mt-3 text-xs leading-relaxed text-muted">
+                Entrenado con {modelo.n_entrenamiento} días. El{' '}
+                {(modelo.tasa_base * 100).toFixed(0)}% de los días evaluados fueron de riesgo:
+                por eso acertar en total es fácil y no basta para juzgar el modelo.
+              </p>
 
               <div className="mt-5">
                 <p className="mb-2 text-sm font-medium text-body">Qué mira más el modelo</p>
