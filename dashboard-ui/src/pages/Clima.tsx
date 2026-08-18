@@ -2,7 +2,7 @@ import { useState } from 'react';
 import {
   Sun, Moon, Cloud, CloudSun, CloudFog, CloudDrizzle, CloudRain,
   CloudSnow, CloudRainWind, CloudLightning, Wind, Droplets, Gauge,
-  MapPin, LocateFixed, Loader2,
+  MapPin, LocateFixed, Loader2, Radio, Waves,
   type LucideIcon,
 } from 'lucide-react';
 import { fetchClimaActual, fetchClimaPorCoords, fetchNombreUbicacion, type ClimaActual } from '../api';
@@ -114,6 +114,23 @@ export default function Clima() {
             <MapPin className="h-4 w-4" /> Volver a {nombreCiudad.split(',')[0] || 'ciudad'}
           </button>
         )}
+
+        {/* Distintivo de procedencia: que se vea de un golpe si el número lo midió
+            un sensor o lo calculó un modelo. El proyecto no disfraza estimaciones. */}
+        {c?.disponible && !c.cacheado && (
+          <span
+            className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
+              c.es_estacion
+                ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                : 'bg-sky-500/10 text-sky-700 dark:text-sky-400'
+            }`}
+            title={c.origen}
+          >
+            {c.es_estacion
+              ? <><Radio className="h-3.5 w-3.5" /> Estación real</>
+              : <><Waves className="h-3.5 w-3.5" /> Modelo</>}
+          </span>
+        )}
       </div>
 
       {gpsError && (
@@ -175,7 +192,16 @@ export default function Clima() {
               </>
             ) : (
               <>
-                Condiciones actuales de {c.origen ?? 'Open-Meteo'} (modelo global). Se actualizan solas cada 5 minutos.
+                {c.es_estacion ? (
+                  <>
+                    Medición real de la {c.origen}
+                    {c.estacion_km != null && `, a ${c.estacion_km} km de la ciudad`}.
+                    Termómetro, anemómetro y barómetro físicos; el reporte se publica cada hora.
+                  </>
+                ) : (
+                  <>Condiciones actuales de {c.origen ?? 'Open-Meteo (modelo global)'}: es una
+                    estimación calculada para el punto exacto, no la lectura de una estación.</>
+                )}
                 {c.ts && ` · Dato de las ${new Date(`${c.ts}Z`).toLocaleTimeString()}.`}
               </>
             )}

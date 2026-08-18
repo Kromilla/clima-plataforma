@@ -113,8 +113,12 @@ export interface ClimaActual {
   /** true = dato del collector (respaldo), no en vivo; trae menos campos. */
   cacheado?: boolean;
   antiguedad_min?: number;
-  /** Fuente en vivo que respondió: "Open-Meteo" o "MET Norway". */
+  /** Fuente en vivo que respondió: una estación METAR o un modelo global. */
   origen?: string;
+  /** true = medición de una estación física; false = estimación de un modelo. */
+  es_estacion?: boolean;
+  /** Distancia de la estación a la ciudad, cuando el dato viene de una. */
+  estacion_km?: number;
   ts?: string;
   temperatura?: number;
   sensacion?: number;
