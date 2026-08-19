@@ -31,8 +31,17 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config import cargar_dotenv  # noqa: E402
 
-# Fuentes que son modelos, no estaciones físicas.
-FUENTES_MODELO = ("openmeteo-aire", "openmeteo-clima")
+# Cómo debe quedar etiquetada cada fuente. Ninguna de las cuatro es un sensor
+# físico en la ciudad, que es lo que significa "local":
+#   · Open-Meteo (aire y clima) calcula, no mide  → modelo
+#   · XM mide de verdad, pero la red nacional      → nacional
+#   · FIRMS detecta de verdad, pero desde órbita   → satelite
+PROCEDENCIA_CORRECTA = {
+    "openmeteo-aire": "modelo",
+    "openmeteo-clima": "modelo",
+    "xm": "nacional",
+    "firms": "satelite",
+}
 
 
 def main() -> int:
@@ -53,30 +62,39 @@ def main() -> int:
 
     import psycopg
 
-    marcadores = ", ".join(["%s"] * len(FUENTES_MODELO))
     with psycopg.connect(url) as con:
-        pendientes = con.execute(
-            f"SELECT COUNT(*) FROM lecturas "  # noqa: S608 — marcadores parametrizados
-            f"WHERE fuente IN ({marcadores}) AND procedencia = 'local'",
-            FUENTES_MODELO,
-        ).fetchone()[0]
+        pendientes = {}
+        for fuente, correcta in PROCEDENCIA_CORRECTA.items():
+            n = con.execute(
+                "SELECT COUNT(*) FROM lecturas WHERE fuente = %s AND procedencia <> %s "
+                "AND procedencia <> 'cache'",
+                (fuente, correcta),
+            ).fetchone()[0]
+            if n:
+                pendientes[fuente] = (n, correcta)
 
-        print(f"Filas de modelo etiquetadas como 'local': {pendientes}")
-        if pendientes == 0:
-            print("Nada que corregir.")
+        if not pendientes:
+            print("Todas las lecturas ya están bien etiquetadas.")
             return 0
+
+        total = sum(n for n, _ in pendientes.values())
+        for fuente, (n, correcta) in pendientes.items():
+            print(f"  {fuente:18} {n:>7} filas → '{correcta}'")
+        print(f"\nTotal a corregir: {total}")
 
         if not args.aplicar:
             print("\nSimulación: no se escribió nada.")
             print("Para aplicarlo: python scripts/corregir_procedencia.py --aplicar")
             return 0
 
-        cur = con.execute(
-            f"UPDATE lecturas SET procedencia = 'modelo' "  # noqa: S608
-            f"WHERE fuente IN ({marcadores}) AND procedencia = 'local'",
-            FUENTES_MODELO,
-        )
-        print(f"Corregidas {cur.rowcount} filas.")
+        print()
+        for fuente, (_, correcta) in pendientes.items():
+            cur = con.execute(
+                "UPDATE lecturas SET procedencia = %s WHERE fuente = %s "
+                "AND procedencia <> %s AND procedencia <> 'cache'",
+                (correcta, fuente, correcta),
+            )
+            print(f"  {fuente:18} {cur.rowcount:>7} corregidas")
 
     return 0
 
