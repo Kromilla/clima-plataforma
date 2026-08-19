@@ -163,7 +163,9 @@ def obtener_ultimo(lugar: dict) -> Lectura:
                 unidad=_UNIDAD,
                 metrica=_METRICA,
                 fuente=_FUENTE,
-                procedencia="local",
+                # Medición real del operador de la red, pero del sistema
+                # nacional entero: no es un sensor de esta ciudad.
+                procedencia="nacional",
                 lugar_id=lugar_id,
                 estacion_nombre="Sistema Interconectado Nacional (XM)",
                 ts=ts,

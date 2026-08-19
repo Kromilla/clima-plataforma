@@ -316,7 +316,8 @@ def obtener_ultimo(lugar: dict) -> Lectura:
             unidad=_UNIDAD,
             metrica=_METRICA,
             fuente=_FUENTE,
-            procedencia="local",
+            # Detección real, pero desde órbita: no hay estación en tierra.
+            procedencia="satelite",
             lugar_id=lugar_id,
             estacion_nombre="NASA FIRMS / VIIRS S-NPP",
             ts=ts,

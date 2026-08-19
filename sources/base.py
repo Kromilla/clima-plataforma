@@ -35,9 +35,11 @@ class Lectura:
     fuente: str                          # "openaq", "openmeteo", "electricity_maps", …
 
     # ── Trazabilidad ────────────────────────────────────────────────────────
-    # "local"    → estación física en el lugar
-    # "fallback"  → estación física de otro lugar cercano
-    # "modelo"    → valor calculado por un modelo, no medido por un sensor
+    # "local"    → sensor físico en el lugar
+    # "fallback"  → sensor físico de otro lugar cercano
+    # "nacional"  → medición real, pero de todo el país (XM mide la red entera)
+    # "satelite"  → detección real por teledetección (FIRMS/VIIRS)
+    # "modelo"    → valor calculado, no medido por ningún sensor
     # "cache"     → último valor guardado, porque la fuente no respondió
     procedencia: str
     lugar_id: str                        # clave en LUGARES, ej. "santa-marta"
@@ -93,10 +95,16 @@ class Lectura:
             base = f"📍 Estación local ({self.estacion_nombre or self.lugar_id})"
         elif self.procedencia == "fallback":
             base = f"📡 Estación alternativa ({self.estacion_nombre or 'fallback'})"
+        elif self.procedencia == "nacional":
+            # Dato medido de verdad, pero del sistema entero: no es "de aquí".
+            base = f"🌐 Medición nacional ({self.estacion_nombre or 'Colombia'})"
+        elif self.procedencia == "satelite":
+            base = f"🛰️ Satélite ({self.estacion_nombre or 'teledetección'})"
         elif self.procedencia == "modelo":
             # Un modelo interpola; no hay sensor en el punto. Llamarlo "estación
             # local" sería presentar una estimación como si fuera una medición.
-            base = f"🛰️ Modelo ({self.estacion_nombre or 'global'})"
+            # El emoji NO es un satélite: eso sugeriría una observación real.
+            base = f"🧮 Modelo ({self.estacion_nombre or 'global'})"
         else:
             return self.procedencia
 
