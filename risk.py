@@ -380,7 +380,7 @@ class Prediccion:
     modelo_es_util: bool
 
     # La etiqueta viaja con el dato: no depende de que la UI se acuerde de ponerla.
-    etiqueta: str = "⚠️ Estimación experimental — no es una alerta oficial"
+    etiqueta: str = "Estimación experimental — no es una alerta oficial"
 
     @property
     def nivel(self) -> str:

@@ -89,27 +89,26 @@ class Lectura:
         el dato no tiene.
         """
         if self.procedencia == "cache":
-            return f"🗄️ Último dato conocido ({self.antiguedad_texto()})"
+            return f"Último dato conocido ({self.antiguedad_texto()})"
 
         if self.procedencia == "local":
-            base = f"📍 Estación local ({self.estacion_nombre or self.lugar_id})"
+            base = f"Estación local ({self.estacion_nombre or self.lugar_id})"
         elif self.procedencia == "fallback":
-            base = f"📡 Estación alternativa ({self.estacion_nombre or 'fallback'})"
+            base = f"Estación alternativa ({self.estacion_nombre or 'fallback'})"
         elif self.procedencia == "nacional":
             # Dato medido de verdad, pero del sistema entero: no es "de aquí".
-            base = f"🌐 Medición nacional ({self.estacion_nombre or 'Colombia'})"
+            base = f"Medición nacional ({self.estacion_nombre or 'Colombia'})"
         elif self.procedencia == "satelite":
-            base = f"🛰️ Satélite ({self.estacion_nombre or 'teledetección'})"
+            base = f"Satélite ({self.estacion_nombre or 'teledetección'})"
         elif self.procedencia == "modelo":
             # Un modelo interpola; no hay sensor en el punto. Llamarlo "estación
             # local" sería presentar una estimación como si fuera una medición.
-            # El emoji NO es un satélite: eso sugeriría una observación real.
-            base = f"🧮 Modelo ({self.estacion_nombre or 'global'})"
+            base = f"Modelo ({self.estacion_nombre or 'global'})"
         else:
             return self.procedencia
 
         if not self.es_reciente():
-            return f"{base} — ⚠️ dato de {self.antiguedad_texto()}"
+            return f"{base} — dato de {self.antiguedad_texto()}"
         return base
 
     def __str__(self) -> str:

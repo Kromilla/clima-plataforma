@@ -148,13 +148,13 @@ def test_dato_viejo_se_marca_aunque_sea_local():
     de "no fingir precisión que no tiene".
     """
     etiqueta = _lectura_con_edad(60 * 48).etiqueta_procedencia()
-    assert "⚠️" in etiqueta
+    assert "dato de" in etiqueta
     assert "días" in etiqueta
 
 
 def test_dato_fresco_no_lleva_advertencia():
     etiqueta = _lectura_con_edad(5).etiqueta_procedencia()
-    assert "⚠️" not in etiqueta
+    assert "dato de" not in etiqueta
     assert _lectura_con_edad(5).es_reciente()
 
 

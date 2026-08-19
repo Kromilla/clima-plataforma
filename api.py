@@ -434,7 +434,7 @@ def obtener_riesgo(lugar_id: str = DEFAULT_LUGAR):
             "disponible": False,
             "motivo": getattr(exc, "motivo", "sin_historial"),
             "mensaje": str(exc),
-            "etiqueta": "⚠️ Estimación experimental — no es una alerta oficial",
+            "etiqueta": "Estimación experimental — no es una alerta oficial",
         }
 
     return {

@@ -96,7 +96,7 @@ export default function Fires() {
               className="field !w-auto !py-1.5"
               aria-label="Lugar"
             >
-              <option value="colombia">🇨🇴 Colombia</option>
+              <option value="colombia">Colombia</option>
               {lugares.map((l) => (
                 <option key={l.id} value={l.id}>{l.nombre.split(',')[0]}</option>
               ))}

@@ -86,7 +86,7 @@ def test_forzar_utf8_es_idempotente():
 def test_storage_conserva_la_procedencia_original(tmp_path):
     """
     `ultimo_valor` forzaba procedencia="cache", así que el dashboard mostraba
-    "🗄️ último dato conocido" (que significa "la fuente se cayó") para datos que
+    "Último dato conocido" (que significa "la fuente se cayó") para datos que
     la API acababa de entregar.
     """
     db = str(tmp_path / "t.db")
@@ -95,7 +95,7 @@ def test_storage_conserva_la_procedencia_original(tmp_path):
 
     recuperada = storage.ultimo_valor("test-fuente", "santa-marta", "pm25", db)
     assert recuperada.procedencia == "local"
-    assert "🗄️" not in recuperada.etiqueta_procedencia()
+    assert "Último dato conocido" not in recuperada.etiqueta_procedencia()
 
 
 def test_storage_conserva_procedencia_fallback(tmp_path):
@@ -585,7 +585,7 @@ def test_rls_no_toca_sqlite(tmp_path):
 def test_un_modelo_no_se_presenta_como_estacion_local():
     """
     CAMS y Open-Meteo son modelos, no sensores en el sitio. Se etiquetaban con
-    procedencia "local", así que la UI mostraba "📍 Estación local (Modelo CAMS)"
+    procedencia "local", así que la UI mostraba "Estación local (Modelo CAMS)"
     — una estimación disfrazada de medición.
     """
     lec = _lectura("modelo")
@@ -604,7 +604,7 @@ def test_una_estacion_real_si_se_presenta_como_local():
 def test_cada_procedencia_dice_lo_que_es():
     """
     Cuatro fuentes, ninguna es un sensor físico en la ciudad, y las cuatro se
-    mostraban como "📍 Estación local". Cada una necesita su propia etiqueta:
+    mostraban como "Estación local". Cada una necesita su propia etiqueta:
     un modelo calcula, XM mide el país entero, FIRMS observa desde órbita.
     """
     esperado = {
@@ -620,15 +620,6 @@ def test_cada_procedencia_dice_lo_que_es():
     # Y ninguna de las tres que no son locales puede decir que lo es.
     for procedencia in ("nacional", "satelite", "modelo"):
         assert "Estación local" not in _lectura(procedencia).etiqueta_procedencia()
-
-
-def test_el_modelo_no_usa_el_emoji_de_satelite():
-    """
-    El modelo llevaba 🛰️, que sugiere una observación real desde el espacio.
-    Ese emoji es de FIRMS, que sí observa; el modelo solo calcula.
-    """
-    assert "🛰️" in _lectura("satelite").etiqueta_procedencia()
-    assert "🛰️" not in _lectura("modelo").etiqueta_procedencia()
 
 
 def test_cada_fuente_declara_la_procedencia_que_le_toca():
