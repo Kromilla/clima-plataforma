@@ -105,23 +105,40 @@ def inicializar_bd(db_path: str | None = None) -> None:
                 ts          TEXT NOT NULL
             )
             """,
-            "CREATE INDEX IF NOT EXISTS idx_lecturas_lookup ON lecturas (fuente, lugar_id, metrica, ts DESC)",
             "CREATE TABLE IF NOT EXISTS config_usuario (clave TEXT PRIMARY KEY, valor TEXT NOT NULL)",
         ]
         for s in sentencias:
             con.execute(s)
 
         # Índice único (fuente, lugar, métrica, ts): evita que el recolector
-        # duplique filas cuando la fuente aún no publica un dato nuevo.
-        _deduplicar(con)
-        con.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_lecturas_unica "
-            "ON lecturas (fuente, lugar_id, metrica, ts)"
-        )
+        # duplique filas cuando la fuente aún no publica un dato nuevo. Además
+        # sirve para las búsquedas por esas mismas columnas — un índice se puede
+        # recorrer en cualquier dirección, así que no hace falta uno aparte con
+        # `ts DESC`. Había uno y era 21 MB de pura redundancia: el planificador
+        # lo eligió 4.961 veces contra 2,9 millones del único.
+        ya_existe = _existe_indice_unico(con, es_pg)
+        if not ya_existe:
+            # Solo tiene sentido antes de crear el índice: una vez que existe,
+            # los duplicados son imposibles. Correrlo en cada arranque era un
+            # recorrido completo de la tabla (5,5 s con 124.000 filas) para no
+            # borrar nada.
+            _deduplicar(con)
+            con.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_lecturas_unica "
+                "ON lecturas (fuente, lugar_id, metrica, ts)"
+            )
+        _soltar_indice_redundante(con, es_pg)
 
-    # Postgres/Supabase: cerrar el acceso público. Fuera del bloque anterior
-    # porque un fallo aquí no debe impedir que las tablas se creen.
-    _asegurar_rls(db_path)
+        # Se comprueba aquí, reusando esta conexión, y solo se abre otra si de
+        # verdad hay que activar RLS. Abrir una conexión a Supabase cuesta ~1,2 s
+        # — más que todas las consultas juntas —, así que en el caso normal
+        # (RLS ya activo) el arranque se ahorra la mitad del tiempo.
+        faltan_rls = _tablas_sin_rls(con, es_pg)
+
+    # El ALTER va en su propia conexión a propósito: en Postgres un fallo aborta
+    # toda la transacción, y no debe llevarse por delante la creación de tablas.
+    if faltan_rls:
+        _asegurar_rls(db_path)
 
 
 def _asegurar_rls(db_path: str | None = None) -> None:
@@ -156,6 +173,53 @@ def _asegurar_rls(db_path: str | None = None) -> None:
                 logger.info("RLS activado en %s", tabla)
     except Exception as exc:  # noqa: BLE001 — la seguridad no debe tumbar el arranque
         logger.warning("No se pudo activar RLS (córrelo en el SQL Editor): %s", exc)
+
+
+def _tablas_sin_rls(con: object, es_pg: bool) -> list[str]:
+    """Tablas a las que les falta Row-Level Security. Vacío en SQLite."""
+    if not es_pg:
+        return []
+    filas = con.execute(
+        "SELECT relname FROM pg_class "
+        "WHERE relname IN ('lecturas', 'config_usuario') AND NOT relrowsecurity"
+    ).fetchall()
+    return [f["relname"] for f in filas]
+
+
+def _existe_indice_unico(con: object, es_pg: bool) -> bool:
+    """Si el índice único ya está, no hay duplicados que limpiar."""
+    if es_pg:
+        sql = "SELECT 1 FROM pg_class WHERE relname = 'idx_lecturas_unica'"
+    else:
+        sql = "SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_lecturas_unica'"
+    return con.execute(sql).fetchone() is not None
+
+
+def _soltar_indice_redundante(con: object, es_pg: bool) -> None:
+    """
+    Elimina `idx_lecturas_lookup`, que cubre las mismas columnas que el único.
+
+    Mantener dos índices iguales cuesta espacio y, sobre todo, hace más lenta
+    cada escritura del recolector: hay que actualizar los dos árboles.
+    """
+    try:
+        if not _existe_indice_unico(con, es_pg):
+            return  # sin el único, el otro todavía hace falta
+
+        # Se consulta antes de soltar: así, una vez eliminado, los arranques
+        # siguientes no ejecutan ningún DDL ni piden bloqueo alguno.
+        if es_pg:
+            sql = "SELECT 1 FROM pg_class WHERE relname = 'idx_lecturas_lookup'"
+        else:
+            sql = ("SELECT 1 FROM sqlite_master WHERE type='index' "
+                   "AND name='idx_lecturas_lookup'")
+        if con.execute(sql).fetchone() is None:
+            return
+
+        con.execute("DROP INDEX IF EXISTS idx_lecturas_lookup")
+        logger.info("Índice redundante idx_lecturas_lookup eliminado")
+    except Exception as exc:  # noqa: BLE001 — no debe impedir el arranque
+        logger.warning("No se pudo soltar idx_lecturas_lookup: %s", exc)
 
 
 def _deduplicar(con: object) -> None:

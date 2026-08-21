@@ -644,3 +644,58 @@ def test_cada_fuente_declara_la_procedencia_que_le_toca():
         assert all(p == correcta for p in declaradas), (
             f"{archivo} declara {declaradas}; debería ser '{correcta}'"
         )
+
+
+# ── Bug: el arranque recorría toda la tabla y mantenía un índice de más ──────
+
+def test_el_arranque_no_deduplica_si_ya_existe_el_indice_unico(tmp_path, monkeypatch):
+    """
+    `_deduplicar` recorre la tabla entera. Solo tiene sentido ANTES de crear el
+    índice único: una vez que existe, los duplicados son imposibles. Correrlo en
+    cada arranque eran 5,5 s con 124.000 filas para no borrar nada, y en Render
+    ese costo lo paga el usuario en cada cold start.
+    """
+    db = str(tmp_path / "t.db")
+    storage.inicializar_bd(db)          # primera vez: sí deduplica
+
+    llamadas = []
+    monkeypatch.setattr(storage, "_deduplicar", lambda con: llamadas.append(1))
+    storage.inicializar_bd(db)
+    storage.inicializar_bd(db)
+
+    assert llamadas == [], "no debe recorrer la tabla si el índice único ya existe"
+
+
+def test_una_base_nueva_no_crea_el_indice_redundante(tmp_path):
+    """
+    El índice único ya cubre (fuente, lugar_id, metrica, ts). Un segundo índice
+    sobre las mismas columnas con `ts DESC` no aporta —un índice se recorre en
+    cualquier dirección— y encarece cada escritura del recolector.
+    """
+    db = str(tmp_path / "t.db")
+    storage.inicializar_bd(db)
+
+    with storage._conexion(db) as (con, _):
+        indices = {r[0] for r in con.execute(
+            "SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'idx_%'"
+        ).fetchall()}
+
+    assert "idx_lecturas_unica" in indices
+    assert "idx_lecturas_lookup" not in indices
+
+
+def test_el_arranque_suelta_el_indice_redundante_heredado(tmp_path):
+    """Las bases creadas antes del cambio lo tienen; el arranque debe soltarlo."""
+    db = str(tmp_path / "t.db")
+    storage.inicializar_bd(db)
+    with storage._conexion(db) as (con, _):
+        con.execute("CREATE INDEX idx_lecturas_lookup "
+                    "ON lecturas (fuente, lugar_id, metrica, ts DESC)")
+
+    storage.inicializar_bd(db)
+
+    with storage._conexion(db) as (con, _):
+        sobra = con.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_lecturas_lookup'"
+        ).fetchone()
+    assert sobra is None, "el índice redundante debió eliminarse"
