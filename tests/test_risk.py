@@ -92,7 +92,29 @@ def db_con_historial(tmp_path, monkeypatch):
     storage.inicializar_bd(db)
     monkeypatch.setattr(storage, "_db_path", lambda: db)
     _sembrar_historial(db)
+    _acelerar_entrenamiento(monkeypatch)
     return db
+
+
+def _acelerar_entrenamiento(monkeypatch):
+    """
+    Achica el bosque y las ventanas de validación durante los tests.
+
+    La evaluación de origen móvil entrena un modelo por ventana, así que con los
+    valores de producción (8 ventanas × 200 árboles) la suite pasaba de 40 s a
+    más de 2 minutos. Lo que se verifica aquí es el comportamiento —que no haya
+    fuga temporal, que se compare contra la persistencia—, no la calidad del
+    modelo, y eso no cambia con menos árboles.
+    """
+    monkeypatch.setattr(risk, "VENTANAS_VALIDACION", 3)
+    original = risk._clasificador
+
+    def _rapido(semilla: int):
+        clf = original(semilla)
+        clf.set_params(n_estimators=25)
+        return clf
+
+    monkeypatch.setattr(risk, "_clasificador", _rapido)
 
 
 # ── Carga y agregación ───────────────────────────────────────────────────────
