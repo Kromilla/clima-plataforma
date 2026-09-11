@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import logging
 import math
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
@@ -525,6 +526,21 @@ def entrenar(
 _CACHE: dict[str, tuple[Modelo, list[DiaResumen], datetime]] = {}
 TTL_MODELO_SEG = 3600
 
+# Lock por lugar_id: evita que dos requests simultáneos entrenen el modelo en
+# paralelo cuando el TTL expira bajo carga concurrente. Sin lock, dos hilos
+# entrarían al «if guardado is None» al mismo tiempo y consumirían 2-4 s de CPU
+# y ~200 MB de RAM cada uno — suficiente para colapsar el plan free de Render.
+_LOCKS: dict[str, threading.Lock] = {}
+_LOCKS_META = threading.Lock()  # protege el acceso al dict de locks
+
+
+def _lock_para(lugar_id: str) -> threading.Lock:
+    """Devuelve (creando si hace falta) el lock asociado a un lugar."""
+    with _LOCKS_META:
+        if lugar_id not in _LOCKS:
+            _LOCKS[lugar_id] = threading.Lock()
+        return _LOCKS[lugar_id]
+
 
 def invalidar_cache(lugar_id: str | None = None) -> None:
     """Descarta el modelo cacheado (útil en tests y tras un backfill)."""
@@ -538,9 +554,16 @@ def evaluar_riesgo(
     lugar_id: str = DEFAULT_LUGAR,
     usar_cache: bool = True,
 ) -> tuple[Prediccion, Metricas]:
-    """Entrena (o reutiliza el modelo cacheado) y predice. Es lo que usa la API."""
+    """
+    Entrena (o reutiliza el modelo cacheado) y predice. Es lo que usa la API.
+
+    El lock por lugar_id garantiza que solo un hilo entrena a la vez: si dos
+    requests llegan cuando el TTL expira, el segundo espera a que el primero
+    termine y luego reutiliza el resultado ya en caché.
+    """
     ahora = datetime.now(timezone.utc)
 
+    # Lectura rápida sin lock: en el caso normal (caché válida) no hay contención.
     if usar_cache:
         guardado = _CACHE.get(lugar_id)
         if guardado is not None:
@@ -548,6 +571,18 @@ def evaluar_riesgo(
             if (ahora - entrenado).total_seconds() < TTL_MODELO_SEG:
                 return modelo.predecir_manana(dias), modelo.metricas
 
-    modelo, dias = entrenar(lugar_id)
-    _CACHE[lugar_id] = (modelo, dias, ahora)
+    # Caché ausente o expirada: adquirir lock antes de entrenar.
+    with _lock_para(lugar_id):
+        # Doble comprobación: otro hilo pudo haber entrenado mientras esperábamos.
+        ahora = datetime.now(timezone.utc)
+        if usar_cache:
+            guardado = _CACHE.get(lugar_id)
+            if guardado is not None:
+                modelo, dias, entrenado = guardado
+                if (ahora - entrenado).total_seconds() < TTL_MODELO_SEG:
+                    return modelo.predecir_manana(dias), modelo.metricas
+
+        modelo, dias = entrenar(lugar_id)
+        _CACHE[lugar_id] = (modelo, dias, ahora)
+
     return modelo.predecir_manana(dias), modelo.metricas

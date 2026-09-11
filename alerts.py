@@ -6,6 +6,11 @@ Se generaliza cuando exista una tercera regla real, no antes.
 """
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sources.firms import Foco
+
 from sources.base import Lectura
 
 
@@ -56,7 +61,7 @@ def revisar_alerta(valor: float, umbral: float) -> str | None:
 UMBRAL_FOCO_KM = 20.0
 
 
-def revisar_alerta_incendio(focos: list, umbral_km: float = UMBRAL_FOCO_KM) -> str | None:
+def revisar_alerta_incendio(focos: list[Foco], umbral_km: float = UMBRAL_FOCO_KM) -> str | None:
     """
     Segunda regla de alerta: foco de calor cerca del lugar.
 

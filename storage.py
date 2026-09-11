@@ -169,6 +169,11 @@ def _asegurar_rls(db_path: str | None = None) -> None:
             ).fetchall()
             for fila in filas:
                 tabla = fila["relname"]
+                # Whitelist: la query de arriba ya filtra, pero un cambio futuro
+                # no debe permitir ejecutar DDL sobre tablas arbitrarias.
+                assert tabla in {"lecturas", "config_usuario"}, (
+                    f"Tabla inesperada en ALTER TABLE: {tabla!r}"
+                )
                 con.execute(f"ALTER TABLE {tabla} ENABLE ROW LEVEL SECURITY")
                 logger.info("RLS activado en %s", tabla)
     except Exception as exc:  # noqa: BLE001 — la seguridad no debe tumbar el arranque

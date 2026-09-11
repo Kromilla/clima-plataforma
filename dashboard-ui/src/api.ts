@@ -45,12 +45,24 @@ export type LecturasActuales = Record<string, Lectura | null>;
 // del backend en Render.
 const BASE = import.meta.env.VITE_API_URL ?? '';
 
+/** Timeout de red: aborta la petición si el servidor no responde en 25 s.
+ *  Los cold starts de Render duran ~30 s, así que 25 s permite que useFetch
+ *  muestre el aviso "Reactivando el servidor" antes de que el SO mate la conexión.
+ */
+const TIMEOUT_MS = 25_000;
+
 async function getJSON<T>(url: string): Promise<T> {
-  const res = await fetch(BASE + url);
-  if (!res.ok) {
-    throw new Error(`${url} respondió ${res.status}`);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const res = await fetch(BASE + url, { signal: controller.signal });
+    if (!res.ok) {
+      throw new Error(`${url} respondió ${res.status}`);
+    }
+    return res.json() as Promise<T>;
+  } finally {
+    clearTimeout(timer);
   }
-  return res.json() as Promise<T>;
 }
 
 export function fetchLugares() {

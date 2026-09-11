@@ -16,6 +16,9 @@ from datetime import datetime, timezone
 from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 import risk
 import storage
@@ -25,6 +28,10 @@ from locations import COLOMBIA, DEFAULT_LUGAR, LUGARES
 from sources import firms, metar, openmeteo_clima
 from sources.base import Lectura
 from sources.registry import FUENTES, lugar_efectivo, por_id
+
+# Rate limiter: clave por IP. Se aplica a los endpoints costosos
+# (/api/riesgo entrena un modelo ML; /api/incendios llama a NASA FIRMS).
+limiter = Limiter(key_func=get_remote_address)
 
 # httpx (que usa la librería de Telegram) loguea la URL con el token; silenciarlo.
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -49,6 +56,8 @@ def _webhook_secret() -> str:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    import asyncio
+    from concurrent.futures import ThreadPoolExecutor
     from telegram import Update
     from telegram.ext import Application
 
@@ -70,8 +79,23 @@ async def lifespan(app: FastAPI):
         except Exception as exc:  # noqa: BLE001 — un fallo del bot no debe tumbar la API
             logger.warning("No se pudo configurar el webhook de Telegram: %s", exc)
 
+    # Precalentar el modelo ML en background: el primer request a /api/riesgo
+    # entrena sobre ~35.000 filas (1-2 s). Si Render acaba de despertar de un
+    # cold start (~30 s), el usuario esperaría 32 s en total. Iniciarlo aquí
+    # solapa el entrenamiento con el tiempo de arranque del servidor.
+    loop = asyncio.get_event_loop()
+    executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="ml-warmup")
+    def _precalentar():
+        try:
+            risk.evaluar_riesgo(DEFAULT_LUGAR)
+            logger.info("Modelo ML precalentado correctamente")
+        except Exception as exc:  # noqa: BLE001 — no debe tumbar el arranque
+            logger.debug("Precalentamiento ML omitido: %s", exc)
+    loop.run_in_executor(executor, _precalentar)
+
     yield
 
+    executor.shutdown(wait=False)
     if app.state.tg is not None:
         # No se borra el webhook: así Telegram sigue despertando el servicio dormido.
         await app.state.tg.stop()
@@ -79,6 +103,10 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="ClimaBot API", lifespan=lifespan)
+
+# Rate limiting: registrar el handler de 429 y el estado del limiter en la app.
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Dashboard (Vercel) y API (Render) viven en dominios distintos → hace falta CORS.
 # credentials=False porque la app no usa cookies (y con credenciales el "*" sería
@@ -346,7 +374,9 @@ def estado_fuentes(lugar_id: str = DEFAULT_LUGAR):
 
 
 @app.get("/api/incendios")
+@limiter.limit("20/minute")
 def obtener_incendios(
+    request: Request,
     lugar_id: str = DEFAULT_LUGAR,
     dias: int = Query(default=2, ge=1, le=10),
     nacional: bool = False,
@@ -415,7 +445,8 @@ def obtener_incendios(
 # ── Fase 4: predictor de riesgo ──────────────────────────────────────────────
 
 @app.get("/api/riesgo")
-def obtener_riesgo(lugar_id: str = DEFAULT_LUGAR):
+@limiter.limit("10/minute")
+def obtener_riesgo(lugar_id: str = DEFAULT_LUGAR, request: Request = None):
     """
     Estimación experimental de riesgo de calor extremo.
 
