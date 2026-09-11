@@ -127,6 +127,15 @@ app.add_middleware(
 storage.inicializar_bd()
 
 
+@app.get("/api/health")
+def health_check():
+    """
+    Health check sin I/O: confirma que el servidor está vivo sin tocar la BD.
+    Lo usa keepwarm.yml en vez de /api/lugares, que abría una conexión SQLite.
+    """
+    return {"status": "ok"}
+
+
 @app.post("/telegram/webhook")
 async def telegram_webhook(
     request: Request,
@@ -446,7 +455,7 @@ def obtener_incendios(
 
 @app.get("/api/riesgo")
 @limiter.limit("10/minute")
-def obtener_riesgo(lugar_id: str = DEFAULT_LUGAR, request: Request = None):
+def obtener_riesgo(request: Request, lugar_id: str = DEFAULT_LUGAR):
     """
     Estimación experimental de riesgo de calor extremo.
 

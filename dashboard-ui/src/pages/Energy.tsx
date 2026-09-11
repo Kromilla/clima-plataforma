@@ -6,6 +6,7 @@ import {
   fetchActual, fetchHistorial, FUENTE_ENERGIA,
   type Lectura, type LecturasActuales,
 } from '../api';
+import { useMemo } from 'react';
 import { useLugar } from '../LugarContext';
 import { useFetch } from '../useFetch';
 import { useColoresGrafica } from '../useTema';
@@ -47,10 +48,16 @@ export default function Energy() {
 
   const energia = datos?.actual[FUENTE_ENERGIA] ?? null;
 
-  const datosGrafica = (datos?.historial ?? []).map((h) => ({
-    fecha: new Date(h.ts).toLocaleString([], { day: '2-digit', month: '2-digit', hour: '2-digit' }),
-    intensidad: h.valor,
-  }));
+  // MIRROR: misma transformación que AirQuality.tsx — si cambias el formato de
+  // fecha allá, cámbialo aquí también.
+  const datosGrafica = useMemo(
+    () =>
+      (datos?.historial ?? []).map((h) => ({
+        fecha: new Date(h.ts).toLocaleString([], { day: '2-digit', month: '2-digit', hour: '2-digit' }),
+        intensidad: h.valor,
+      })),
+    [datos?.historial],
+  );
 
   return (
     <div>
