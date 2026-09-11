@@ -52,6 +52,10 @@ const BASE = import.meta.env.VITE_API_URL ?? '';
 const TIMEOUT_MS = 25_000;
 
 async function getJSON<T>(url: string): Promise<T> {
+  if (!navigator.onLine) {
+    throw new Error('Sin conexión a internet');
+  }
+  
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
