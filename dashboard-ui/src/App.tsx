@@ -82,7 +82,7 @@ function SemaforoFuentes() {
   const { datos: estados, error } = useFetch<Record<string, EstadoFuente>>(
     () => fetchEstadoFuentes(lugarId!),
     [lugarId],
-    { activo: !!lugarId, intervaloMs: 60_000 },
+    { activo: !!lugarId, intervaloMs: 30_000 },
   );
 
   if (error && !estados) {

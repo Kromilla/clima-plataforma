@@ -141,7 +141,7 @@ _CAMPOS_ACTUAL = (
 # _CACHE_MAX acota el dict: con GPS los puntos son ilimitados, así que sin tope
 # el caché crecería sin parar (fuga de memoria en el plan free de Render).
 _CACHE_ACTUAL: dict[tuple[float, float], tuple[float, dict]] = {}
-_CACHE_TTL_SEG = 120
+_CACHE_TTL_SEG = 60
 _CACHE_MAX = 256
 
 
