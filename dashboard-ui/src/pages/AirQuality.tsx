@@ -2,6 +2,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart,
 } from 'recharts';
 import { Wind, Thermometer } from 'lucide-react';
+import { useMemo } from 'react';
 import {
   fetchActual, fetchHistorial, FUENTE_AIRE, FUENTE_CLIMA,
   type Lectura, type LecturasActuales,
@@ -13,7 +14,11 @@ import MetricCard from '../components/MetricCard';
 import AvisoBackend from '../components/AvisoBackend';
 import PageHeader from '../components/PageHeader';
 
-/** Escala PM2.5 — misma que usa alerts.py en el backend. */
+/**
+ * Escala PM2.5 — misma que usa alerts.py en el backend.
+ * MIRROR: alerts.py::_NIVELES_PM25 / nivel_pm25(). Si se cambian los umbrales
+ * aquí, actualizarlos también allá (y viceversa).
+ */
 function nivelPm25(v: number): { texto: string; clase: string } {
   if (v < 12) return { texto: 'Buena', clase: 'badge-good' };
   if (v < 35.4) return { texto: 'Moderada', clase: 'badge-warn' };
@@ -47,10 +52,14 @@ export default function AirQuality() {
   const clima = datos?.actual[FUENTE_CLIMA] ?? null;
   const nombreLugar = lugares.find((l) => l.id === lugarId)?.nombre ?? '';
 
-  const datosGrafica = (datos?.historial ?? []).map((h) => ({
-    hora: new Date(h.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    pm25: h.valor,
-  }));
+  const datosGrafica = useMemo(
+    () =>
+      (datos?.historial ?? []).map((h) => ({
+        hora: new Date(h.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        pm25: h.valor,
+      })),
+    [datos?.historial],
+  );
 
   return (
     <div>
@@ -100,7 +109,7 @@ export default function AirQuality() {
                 <XAxis dataKey="hora" axisLine={false} tickLine={false}
                   tick={{ fill: c.eje, fontSize: 12 }} dy={8} minTickGap={24} />
                 <YAxis axisLine={false} tickLine={false}
-                  tick={{ fill: c.eje, fontSize: 12 }} width={44} unit=" µg" />
+                  tick={{ fill: c.eje, fontSize: 12 }} width={52} unit=" µg/m³" />
                 <Tooltip
                   contentStyle={{
                     background: c.tooltipBg, border: `1px solid ${c.tooltipBorde}`,

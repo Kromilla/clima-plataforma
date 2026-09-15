@@ -26,7 +26,7 @@ jobs:
         # /api/lugares es el healthcheck: no toca la BD, es barato. Cambia la URL
         # si el servicio de Render se llama distinto.
         run: |
-          URL="https://climabot-api-aiw3.onrender.com/api/lugares"
+          URL="https://climabot-api-aiw3.onrender.com/api/health"
           codigo=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 "$URL" || echo "000")
           echo "Ping a $URL → HTTP $codigo"
           # No se falla el workflow si el servicio estaba despertando (el propio

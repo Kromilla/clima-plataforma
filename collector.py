@@ -57,16 +57,19 @@ def recolectar_una_vez() -> dict[str, str]:
     resumen: dict[str, str] = {}
     # Las fuentes nacionales (XM) publican un solo dato para todo el país:
     # consultarlas una vez por ciudad eran 14 llamadas y 14 filas idénticas.
-    nacionales_hechas: set[str] = set()
+    # La clave es (fuente.id, fuente.metrica): si una fuente nacional tuviera
+    # dos métricas distintas en el futuro, ambas deberían recolectarse.
+    nacionales_hechas: set[tuple[str, str]] = set()
 
     for lugar_id in LUGARES:
         lugar = _lugar_con_id(lugar_id)
 
         for fuente in FUENTES:
             if fuente.ambito == "nacional":
-                if fuente.id in nacionales_hechas:
+                clave_nacional = (fuente.id, fuente.metrica)
+                if clave_nacional in nacionales_hechas:
                     continue
-                nacionales_hechas.add(fuente.id)
+                nacionales_hechas.add(clave_nacional)
                 clave = f"nacional/{fuente.id}"
             else:
                 clave = f"{lugar_id}/{fuente.id}"

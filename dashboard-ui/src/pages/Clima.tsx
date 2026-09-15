@@ -45,7 +45,7 @@ export default function Clima() {
   const { datos: c, error, cargando, recargar, intentos } = useFetch<ClimaActual>(
     () => (coords ? fetchClimaPorCoords(coords.lat, coords.lon) : fetchClimaActual(lugarId!)),
     [coords?.lat, coords?.lon, lugarId],
-    { activo: coords != null || !!lugarId, intervaloMs: 5 * 60_000 },
+    { activo: coords != null || !!lugarId, intervaloMs: 2 * 60_000 },
   );
 
   function ubicarme() {

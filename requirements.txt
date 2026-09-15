@@ -18,6 +18,9 @@ python-telegram-bot[job-queue]>=20.7,<23.0
 fastapi>=0.110.0,<1.0
 uvicorn[standard]>=0.27.0,<1.0
 pydantic>=2.6.0,<3.0
+# Rate limiting: protege /api/riesgo (entrena ML en cada miss de caché) e
+# /api/incendios (llama a NASA FIRMS externamente) de abuso y DoS.
+slowapi>=0.1.9,<1.0
 
 # ── Base de datos ─────────────────────────────────────────────────────────────
 # SQLite (incluido en Python) para local/tests. Postgres solo en producción:

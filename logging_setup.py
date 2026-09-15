@@ -13,6 +13,7 @@ dibujar un carácter, se sustituye en vez de reventar.
 from __future__ import annotations
 
 import logging
+import logging.handlers
 import sys
 from pathlib import Path
 
@@ -59,7 +60,12 @@ def configurar(archivo_log: str | Path | None = None, nivel: int = logging.INFO)
 
     manejadores: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
     if archivo_log:
-        manejadores.append(logging.FileHandler(archivo_log, encoding="utf-8"))
+        # Rotación a los 5 MB, guardando 1 backup (10 MB máximo total)
+        manejadores.append(
+            logging.handlers.RotatingFileHandler(
+                archivo_log, maxBytes=5 * 1024 * 1024, backupCount=1, encoding="utf-8"
+            )
+        )
 
     logging.basicConfig(
         level=nivel,

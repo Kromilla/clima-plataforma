@@ -82,7 +82,7 @@ function SemaforoFuentes() {
   const { datos: estados, error } = useFetch<Record<string, EstadoFuente>>(
     () => fetchEstadoFuentes(lugarId!),
     [lugarId],
-    { activo: !!lugarId, intervaloMs: 60_000 },
+    { activo: !!lugarId, intervaloMs: 30_000 },
   );
 
   if (error && !estados) {
@@ -206,6 +206,7 @@ function Layout({ children }: { children: ReactNode }) {
     </div>
   );
 }
+import ErrorBoundary from './components/ErrorBoundary';
 
 export default function App() {
   return (
@@ -213,17 +214,19 @@ export default function App() {
       <BrowserRouter>
         <LugarProvider>
           <Layout>
-          <Suspense fallback={<div className="card card-pad"><div className="skeleton h-48 w-full" /></div>}>
-          <Routes>
-            <Route path="/" element={<AirQuality />} />
-            <Route path="/clima" element={<Clima />} />
-            <Route path="/energia" element={<Energy />} />
-            <Route path="/incendios" element={<Fires />} />
-            <Route path="/riesgo" element={<Risk />} />
-            {/* Cualquier ruta desconocida (incluidas /huella y /quiz retiradas) vuelve al inicio. */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </Suspense>
+            <ErrorBoundary>
+              <Suspense fallback={<div className="card card-pad"><div className="skeleton h-48 w-full" /></div>}>
+                <Routes>
+                  <Route path="/" element={<AirQuality />} />
+                  <Route path="/clima" element={<Clima />} />
+                  <Route path="/energia" element={<Energy />} />
+                  <Route path="/incendios" element={<Fires />} />
+                  <Route path="/riesgo" element={<Risk />} />
+                  {/* Cualquier ruta desconocida (incluidas /huella y /quiz retiradas) vuelve al inicio. */}
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </Suspense>
+            </ErrorBoundary>
           </Layout>
         </LugarProvider>
       </BrowserRouter>
